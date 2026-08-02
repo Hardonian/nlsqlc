@@ -19,7 +19,11 @@ def _library() -> c.CDLL:
     if os.environ.get("NLSQL_LIBRARY"):
         candidates.append(os.environ["NLSQL_LIBRARY"])
     root = Path(__file__).resolve().parents[2]
-    candidates += [str(root / "build/qa/libnlsql.so"), str(root / "build/libnlsql.so")]
+    names = ("libnlsql.so", "libnlsql.dylib", "nlsql.dll", "libnlsql.dll")
+    candidates += [str(root / "build" / name) for name in names]
+    for build_dir in ("qa", "integration", "security-fix", "cpp-asan", "final"):
+        candidates += [str(root / "build" / build_dir / name) for name in names]
+    candidates += [str(Path(prefix) / name) for prefix in ("/usr/local/lib", "/usr/lib") for name in names]
     for path in candidates:
         if Path(path).exists():
             return c.CDLL(path)
