@@ -10,6 +10,7 @@ extern "C" {
 
 #define NLSQL_VERSION "0.1.2"
 #define NLSQL_IR_VERSION 1u
+#define NLSQL_ABI_VERSION 1u
 
 typedef enum { NLSQL_OK=0, NLSQL_E_INVALID_ARGUMENT, NLSQL_E_OOM, NLSQL_E_LIMIT, NLSQL_E_PARSE, NLSQL_E_SCHEMA, NLSQL_E_POLICY, NLSQL_E_UNSUPPORTED, NLSQL_E_TYPE, NLSQL_E_DIALECT, NLSQL_E_INTERNAL } nlsql_status;
 typedef enum { NLSQL_DIALECT_POSTGRES, NLSQL_DIALECT_SQLITE, NLSQL_DIALECT_DUCKDB, NLSQL_DIALECT_MYSQL, NLSQL_DIALECT_SQLSERVER } nlsql_dialect;
@@ -44,6 +45,7 @@ nlsql_status nlsql_context_create(const nlsql_config *, nlsql_context **);
 void nlsql_context_destroy(nlsql_context *);
 const char *nlsql_status_name(nlsql_status);
 const char *nlsql_dialect_name(nlsql_dialect);
+unsigned nlsql_abi_version(void);
 
 nlsql_status nlsql_schema_builder_create(nlsql_context *, nlsql_schema_builder **);
 nlsql_status nlsql_schema_builder_add_table(nlsql_schema_builder *, const char *, const char *, unsigned);
