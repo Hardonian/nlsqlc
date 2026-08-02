@@ -1,0 +1,8 @@
+build/
+build-*/
+*.o
+*.a
+*.so
+nlsqlc
+nlsql-tests
+compile_commands.json

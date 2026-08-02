@@ -1,0 +1,7 @@
+project('nlsqlc', 'c', version: '0.1.0', default_options: ['c_std=c11', 'warning_level=3'])
+inc = include_directories('include')
+lib = library('nlsql', 'src/nlsql.c', include_directories: inc, install: true)
+cli = executable('nlsqlc', 'cli/nlsqlc.c', include_directories: inc, link_with: lib)
+t = executable('nlsql-tests', 'tests/test_core.c', include_directories: inc, link_with: lib)
+test('core', t)
+install_subdir('include/nlsql', install_dir: get_option('includedir'))

@@ -1,0 +1,12 @@
+(nlsql 1
+  (query
+    (from orders o)
+    (join inner customers c
+      (eq (column o customer_id) (column c id)))
+    (select
+      (field (sum (column o total_amount)) revenue)
+      (field (column c region) region))
+    (where (eq (column o status) (param status text)))
+    (group-by (column c region))
+    (order-by (ref revenue) desc)
+    (limit 10)))

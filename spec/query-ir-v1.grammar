@@ -1,0 +1,8 @@
+nlsql-ir-v1-grammar
+version 1
+root: (nlsql 1 (query ...))
+ident: [A-Za-z_][A-Za-z0-9_.]*
+features: from join(inner) select(field column param ref aggregate predicate arithmetic boolean) where group-by order-by limit
+comments: forbidden
+raw-sql: forbidden
+multiple-top-level-forms: forbidden
