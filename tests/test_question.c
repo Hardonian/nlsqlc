@@ -87,6 +87,18 @@ int main(void) {
         assert(nlsql_result_param_count(set_result) == 2u);
         nlsql_compile_result_destroy(set_result);
     }
+    {
+        const char *bad_sum = "(nlsql 1 (query (from orders t) (select (field (sum (column t region)) total))))";
+        const char *bad_predicate = "(nlsql 1 (query (from orders t) (select (field (column t id) id)) (where (eq (column t id) (column t region)))))";
+        nlsql_compile_request type_request = {bad_sum, schema, policy, NLSQL_DIALECT_POSTGRES, NULL};
+        assert(nlsql_compile_ir(ctx, &type_request, &result) == NLSQL_E_TYPE);
+        nlsql_compile_result_destroy(result);
+        result = NULL;
+        type_request.ir = bad_predicate;
+        assert(nlsql_compile_ir(ctx, &type_request, &result) == NLSQL_E_TYPE);
+        nlsql_compile_result_destroy(result);
+        result = NULL;
+    }
     bad.question = "drop orders"; bad.schema = schema; bad.policy = policy; bad.dialect = NLSQL_DIALECT_POSTGRES;
     assert(nlsql_compile_question(ctx, &bad, &result) == NLSQL_E_UNSUPPORTED);
     assert(result == NULL);
