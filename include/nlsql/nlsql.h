@@ -35,6 +35,9 @@ typedef nlsql_status (*nlsql_infer_fn)(void *, const char *, size_t, char *, siz
 
 typedef struct { nlsql_infer_fn infer; void *user_data; } nlsql_inference;
 
+nlsql_status nlsql_build_inference_prompt(const nlsql_question_request *, char *, size_t, size_t *);
+nlsql_status nlsql_compile_inferred(nlsql_context *, const nlsql_question_request *, const nlsql_inference *, nlsql_compile_result **);
+
 nlsql_status nlsql_context_create(const nlsql_config *, nlsql_context **);
 void nlsql_context_destroy(nlsql_context *);
 const char *nlsql_status_name(nlsql_status);
@@ -68,6 +71,8 @@ size_t nlsql_result_param_count(const nlsql_compile_result *);
 nlsql_param_view nlsql_result_param(const nlsql_compile_result *, size_t);
 nlsql_risk nlsql_result_risk(const nlsql_compile_result *);
 unsigned nlsql_result_complexity(const nlsql_compile_result *);
+uint64_t nlsql_result_fingerprint(const nlsql_compile_result *);
+double nlsql_result_relevance_score(const nlsql_compile_result *);
 
 #ifdef __cplusplus
 }

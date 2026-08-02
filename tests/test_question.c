@@ -2,6 +2,17 @@
 #include <assert.h>
 #include <string.h>
 
+static nlsql_status infer_fixture(void *user_data, const char *prompt, size_t prompt_length, char *output, size_t output_capacity, size_t *output_length) {
+    const char *ir = "(nlsql 1 (query (from orders t) (select (field (count (column t id)) count))))";
+    (void)user_data;
+    assert(prompt_length == strlen(prompt));
+    assert(strstr(prompt, "Question:") != NULL);
+    assert(strlen(ir) < output_capacity);
+    memcpy(output, ir, strlen(ir));
+    *output_length = strlen(ir);
+    return NLSQL_OK;
+}
+
 static void setup(nlsql_context **ctx, nlsql_schema **schema, nlsql_policy **policy, nlsql_schema_builder **builder) {
     nlsql_config cfg = {0};
     assert(nlsql_context_create(&cfg, ctx) == NLSQL_OK);
@@ -25,6 +36,8 @@ static void check_question(const char *question, const char *needle, nlsql_conte
     assert(result != NULL);
     assert(strstr(nlsql_result_sql(result).sql, needle) != NULL);
     assert(nlsql_result_param_count(result) == 1u);
+    assert(nlsql_result_fingerprint(result) != 0u);
+    assert(nlsql_result_relevance_score(result) > 0.0 && nlsql_result_relevance_score(result) <= 1.0);
     nlsql_compile_result_destroy(result);
 }
 
@@ -40,6 +53,18 @@ int main(void) {
     check_question("list orders total", "\"t\".\"total\"", ctx, schema, policy);
     check_question("sum orders total", "sum(\"t\".\"total\")", ctx, schema, policy);
     check_question("average orders total", "avg(\"t\".\"total\")", ctx, schema, policy);
+    {
+        nlsql_question_request question = {"how many orders", schema, policy, NLSQL_DIALECT_POSTGRES};
+        nlsql_inference inference = {infer_fixture, NULL};
+        nlsql_compile_result *inferred = NULL;
+        char prompt[256];
+        size_t required = 0u;
+        assert(nlsql_build_inference_prompt(&question, prompt, sizeof(prompt), &required) == NLSQL_OK);
+        assert(required == strlen(prompt));
+        assert(nlsql_compile_inferred(ctx, &question, &inference, &inferred) == NLSQL_OK);
+        assert(inferred != NULL && nlsql_result_sql(inferred).length > 0u);
+        nlsql_compile_result_destroy(inferred);
+    }
     bad.question = "drop orders"; bad.schema = schema; bad.policy = policy; bad.dialect = NLSQL_DIALECT_POSTGRES;
     assert(nlsql_compile_question(ctx, &bad, &result) == NLSQL_E_UNSUPPORTED);
     assert(result == NULL);

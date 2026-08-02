@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define NLSQL_VERSION "0.1.0"
+#define NLSQL_VERSION "0.1.2"
 #define NLSQL_IR_VERSION 1u
 
 typedef enum { NLSQL_OK=0, NLSQL_E_INVALID_ARGUMENT, NLSQL_E_OOM, NLSQL_E_LIMIT, NLSQL_E_PARSE, NLSQL_E_SCHEMA, NLSQL_E_POLICY, NLSQL_E_UNSUPPORTED, NLSQL_E_TYPE, NLSQL_E_DIALECT, NLSQL_E_INTERNAL } nlsql_status;
@@ -34,6 +34,9 @@ typedef struct { const char *ir; const nlsql_schema *schema; const nlsql_policy 
 typedef nlsql_status (*nlsql_infer_fn)(void *, const char *, size_t, char *, size_t, size_t *);
 
 typedef struct { nlsql_infer_fn infer; void *user_data; } nlsql_inference;
+
+nlsql_status nlsql_build_inference_prompt(const nlsql_question_request *, char *, size_t, size_t *);
+nlsql_status nlsql_compile_inferred(nlsql_context *, const nlsql_question_request *, const nlsql_inference *, nlsql_compile_result **);
 
 nlsql_status nlsql_context_create(const nlsql_config *, nlsql_context **);
 void nlsql_context_destroy(nlsql_context *);
@@ -68,6 +71,8 @@ size_t nlsql_result_param_count(const nlsql_compile_result *);
 nlsql_param_view nlsql_result_param(const nlsql_compile_result *, size_t);
 nlsql_risk nlsql_result_risk(const nlsql_compile_result *);
 unsigned nlsql_result_complexity(const nlsql_compile_result *);
+uint64_t nlsql_result_fingerprint(const nlsql_compile_result *);
+double nlsql_result_relevance_score(const nlsql_compile_result *);
 
 #ifdef __cplusplus
 }

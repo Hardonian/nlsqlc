@@ -8,6 +8,7 @@ cd "$ROOT"
 rm -rf "$BUILD" "$OUT"
 mkdir -p "$OUT"
 cp src/nlsql.c dist/nlsql.c
+cp include/nlsql/nlsql.h dist/nlsql.h
 python3 - "$ROOT/dist/nlsql.c" <<'PY'
 from pathlib import Path
 p = Path(__import__('sys').argv[1])
@@ -16,7 +17,7 @@ s = s.replace('#include "nlsql/nlsql.h"', '#include "nlsql.h"')
 p.write_text(s)
 PY
 cmp -s <(sed 's/#include "nlsql.h"/#include "nlsql\/nlsql.h"/' dist/nlsql.c) src/nlsql.c
-cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wformat=2 -Wundef -Werror -Iinclude -c dist/nlsql.c -o "$BUILD-dist.o"
+cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wformat=2 -Wundef -Werror -Idist -c dist/nlsql.c -o "$BUILD-dist.o"
 cmake -S . -B "$BUILD" -DCMAKE_BUILD_TYPE=Release -DNLSQL_BUILD_TESTS=ON -DNLSQL_BUILD_CLI=ON
 cmake --build "$BUILD" --parallel
 ctest --test-dir "$BUILD" --output-on-failure
@@ -24,7 +25,7 @@ ASAN_OPTIONS=detect_leaks=1 cc -std=c11 -O1 -g -fsanitize=address,undefined -fno
 ASAN_OPTIONS=detect_leaks=1 "$BUILD-asan" >/dev/null
 STAGE="$OUT/nlsqlc-${VERSION}"
 mkdir -p "$STAGE"
-cp -a LICENSE NOTICE README.md CHANGELOG.md RELEASE_READINESS.md SECURITY.md include dist src cli examples spec tools CMakeLists.txt Makefile meson.build install.sh "$STAGE/"
+cp -a LICENSE NOTICE README.md CHANGELOG.md RELEASE_READINESS.md SECURITY.md FUZZING.md include dist src cli examples spec tools fuzz CMakeLists.txt Makefile meson.build install.sh "$STAGE/"
 printf 'nlsqlc %s\n' "$VERSION" > "$STAGE/VERSION"
 find "$STAGE" -type f -print0 | sort -z | xargs -0 sha256sum > "$STAGE/SHA256SUMS"
 python3 - "$STAGE" "$STAGE/sbom.spdx.json" <<'PY'
