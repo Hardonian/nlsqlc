@@ -8,6 +8,10 @@ NLSQL_OK = 0
 NLSQL_TYPE_INT64 = 3
 NLSQL_TYPE_UUID = 9
 NLSQL_DIALECT_POSTGRES = 0
+NLSQL_DIALECT_SQLITE = 1
+NLSQL_DIALECT_DUCKDB = 2
+NLSQL_DIALECT_MYSQL = 3
+NLSQL_DIALECT_SQLSERVER = 4
 
 
 def _library() -> c.CDLL:
@@ -47,6 +51,12 @@ for name, args, result in [
 for name, args in [("nlsql_context_destroy", [c.c_void_p]), ("nlsql_schema_builder_destroy", [c.c_void_p]), ("nlsql_schema_destroy", [c.c_void_p]), ("nlsql_policy_destroy", [c.c_void_p]), ("nlsql_compile_result_destroy", [c.c_void_p])]:
     fn = getattr(_lib, name); fn.argtypes = args; fn.restype = None
 _lib.nlsql_result_sql.argtypes = [c.c_void_p]
+_lib.nlsql_result_status.argtypes = [c.c_void_p]; _lib.nlsql_result_status.restype = c.c_int
+_lib.nlsql_result_error.argtypes = [c.c_void_p]; _lib.nlsql_result_error.restype = c.c_char_p
+_lib.nlsql_result_canonical_ir.argtypes = [c.c_void_p]; _lib.nlsql_result_canonical_ir.restype = c.c_char_p
+_lib.nlsql_result_fingerprint.argtypes = [c.c_void_p]; _lib.nlsql_result_fingerprint.restype = c.c_uint64
+_lib.nlsql_result_complexity.argtypes = [c.c_void_p]; _lib.nlsql_result_complexity.restype = c.c_uint
+_lib.nlsql_result_relevance_score.argtypes = [c.c_void_p]; _lib.nlsql_result_relevance_score.restype = c.c_double
 class SQLView(c.Structure):
     _fields_ = [("sql", c.c_char_p), ("length", c.c_size_t)]
 _lib.nlsql_result_sql.restype = SQLView
@@ -60,10 +70,14 @@ def _check(status: int) -> None:
 
 class Context:
     def __init__(self, config: Config | None = None):
-        self._ptr = c.c_void_p()
-        _check(_lib.nlsql_context_create(c.byref(config or Config()), c.byref(self._ptr)))
-    def __del__(self):
-        if getattr(self, "_ptr", None): _lib.nlsql_context_destroy(self._ptr)
+        self._ptr = c.c_void_p(); _check(_lib.nlsql_context_create(c.byref(config or Config()), c.byref(self._ptr)))
+    def close(self) -> None:
+        ptr = getattr(self, "_ptr", None)
+        if ptr:
+            _lib.nlsql_context_destroy(ptr); self._ptr = None
+    def __enter__(self): return self
+    def __exit__(self, *_): self.close()
+    def __del__(self): self.close()
 
 class Schema:
     def __init__(self, context: Context, tables: list[tuple[str, str, list[tuple[str, int]]]]):
@@ -73,23 +87,54 @@ class Schema:
             for column, typ in columns:
                 _check(_lib.nlsql_schema_builder_add_column(self._builder, schema.encode(), table.encode(), column.encode(), typ, 0))
         self._ptr = c.c_void_p(); _check(_lib.nlsql_schema_builder_finalize(self._builder, c.byref(self._ptr)))
-    def __del__(self):
-        if getattr(self, "_builder", None): _lib.nlsql_schema_builder_destroy(self._builder)
-        if getattr(self, "_ptr", None): _lib.nlsql_schema_destroy(self._ptr)
+    def close(self) -> None:
+        builder = getattr(self, "_builder", None)
+        ptr = getattr(self, "_ptr", None)
+        if builder:
+            _lib.nlsql_schema_builder_destroy(builder); self._builder = None
+        if ptr:
+            _lib.nlsql_schema_destroy(ptr); self._ptr = None
+    def __enter__(self): return self
+    def __exit__(self, *_): self.close()
+    def __del__(self): self.close()
 
 class Policy:
     def __init__(self, context: Context, tables: list[tuple[str, str]]):
         self._ptr = c.c_void_p(); _check(_lib.nlsql_policy_create(context._ptr, c.byref(self._ptr)))
         for schema, table in tables: _check(_lib.nlsql_policy_allow_table(self._ptr, schema.encode(), table.encode()))
-    def __del__(self):
-        if getattr(self, "_ptr", None): _lib.nlsql_policy_destroy(self._ptr)
+    def close(self) -> None:
+        ptr = getattr(self, "_ptr", None)
+        if ptr:
+            _lib.nlsql_policy_destroy(ptr); self._ptr = None
+    def __enter__(self): return self
+    def __exit__(self, *_): self.close()
+    def __del__(self): self.close()
 
 class Result:
     def __init__(self, ptr): self._ptr = ptr
     @property
     def sql(self) -> str: return _lib.nlsql_result_sql(self._ptr).sql.decode()
-    def __del__(self):
-        if getattr(self, "_ptr", None): _lib.nlsql_compile_result_destroy(self._ptr)
+    @property
+    def status(self) -> int: return _lib.nlsql_result_status(self._ptr)
+    @property
+    def error(self) -> str | None:
+        value = _lib.nlsql_result_error(self._ptr)
+        return value.decode() if value else None
+    @property
+    def canonical_ir(self) -> str: return _lib.nlsql_result_canonical_ir(self._ptr).decode()
+    @property
+    def fingerprint(self) -> int: return int(_lib.nlsql_result_fingerprint(self._ptr))
+    @property
+    def complexity(self) -> int: return int(_lib.nlsql_result_complexity(self._ptr))
+    @property
+    def relevance_score(self) -> float: return float(_lib.nlsql_result_relevance_score(self._ptr))
+    def close(self) -> None:
+        ptr = getattr(self, "_ptr", None)
+        if ptr:
+            _lib.nlsql_compile_result_destroy(ptr); self._ptr = None
+    def __enter__(self): return self
+    def __exit__(self, *_): self.close()
+    def __del__(self): self.close()
 
 def compile_ir(context: Context, schema: Schema, policy: Policy, ir: str, dialect: int = NLSQL_DIALECT_POSTGRES) -> Result:
     request = CompileRequest(ir.encode(), schema._ptr, policy._ptr, dialect, None)

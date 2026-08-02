@@ -28,6 +28,15 @@ def main() -> int:
     connection.executemany("insert into public.orders(id) values (?)", [(7,), (11,)])
     rows = connection.execute(result.sql).fetchall()
     assert rows == [(7,), (11,)], (result.sql, rows)
+    assert result.status == nlsql.NLSQL_OK
+    assert result.fingerprint != 0
+    assert result.complexity > 0
+    assert 0.0 < result.relevance_score <= 1.0
+    result.close()
+    result.close()
+    policy.close()
+    schema.close()
+    context.close()
     print("sqlite_integration_pass")
     return 0
 
