@@ -39,7 +39,7 @@ static nlsql_dialect parse_dialect(const char *s) {
 }
 
 static void usage(void) {
-    puts("nlsqlc 0.1.0\n"
+    puts("nlsqlc " NLSQL_VERSION "\n"
          "usage: nlsqlc compile --ir FILE [--schema FILE] [--policy FILE] [--dialect DIALECT]\n"
          "       nlsqlc validate-ir --ir FILE [--schema FILE] [--policy FILE]\n"
          "       nlsqlc version\n       nlsqlc grammar\n"

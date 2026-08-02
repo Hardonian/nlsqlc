@@ -24,7 +24,7 @@ ASAN_OPTIONS=detect_leaks=1 cc -std=c11 -O1 -g -fsanitize=address,undefined -fno
 ASAN_OPTIONS=detect_leaks=1 "$BUILD-asan" >/dev/null
 STAGE="$OUT/nlsqlc-${VERSION}"
 mkdir -p "$STAGE"
-cp -a LICENSE NOTICE README.md CHANGELOG.md RELEASE_READINESS.md SECURITY.md include dist src cli examples spec tools CMakeLists.txt Makefile meson.build "$STAGE"/
+cp -a LICENSE NOTICE README.md CHANGELOG.md RELEASE_READINESS.md SECURITY.md include dist src cli examples spec tools CMakeLists.txt Makefile meson.build install.sh "$STAGE/"
 printf 'nlsqlc %s\n' "$VERSION" > "$STAGE/VERSION"
 find "$STAGE" -type f -print0 | sort -z | xargs -0 sha256sum > "$STAGE/SHA256SUMS"
 python3 - "$STAGE" "$STAGE/sbom.spdx.json" <<'PY'

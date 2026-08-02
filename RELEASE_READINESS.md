@@ -1,23 +1,24 @@
 # Verification and release readiness
 
-Date: 2026-08-01
+Date: 2026-08-02
 
 ## Evidence run
 
-Release-gate command: `tools/release.sh 0.1.1`
+Release-gate command: `tools/release.sh 0.1.2`
 
-- Make build/test: passed; core and negative security checks passed.
+- Make build/test: passed; core, negative security, and question fast-path checks passed.
 - Strict GCC compile with the requested warning set and `-Werror`: passed.
 - Strict Clang compile: passed.
-- CMake Release build for static library, shared library, CLI, and tests: passed with `-Werror` on all targets.
-- CTest: 1/1 passed.
+- CMake Release build for static library, shared library, static CLI, and tests: passed with `-Werror` on all targets.
+- CTest: 2/2 passed.
 - ASan/UBSan core test: passed with leak detection enabled.
 - CLI trusted `.nlschema`/`.nlpolicy` validation and PostgreSQL compilation: passed.
 - Amalgamation source comparison and standalone compile: passed.
+- Static CLI check: passed; `nlsqlc` is statically linked.
 - Release archive, SHA-256 checksum, and SPDX 2.3 SBOM: generated under `release/`.
 - Meson execution remains unavailable because `meson` is not installed on this host; its strict configuration is present but not claimed as executed.
 
-The repository is release-ready for the scoped 0.1.1 alpha package: a bounded, read-only, policy-checked SQL compiler with typed parameters, canonical IR, tenant enforcement, FK-backed joins, and trusted CLI configuration formats.
+The repository is release-ready for the scoped 0.1.2 alpha package: a bounded, read-only, policy-checked SQL compiler with typed parameters, canonical IR, tenant enforcement, FK-backed joins, trusted CLI configuration formats, deterministic question fast paths, and a static CLI.
 
 ## 1.0 blockers
 
