@@ -75,6 +75,20 @@ int main(void) {
         result = NULL;
         nlsql_policy_destroy(invalid_tenant);
     }
+    {
+        nlsql_policy *mismatched_tenant = NULL;
+        nlsql_compile_request request = {"(nlsql 1 (query (from orders t) (select (field (column t id) id))))", schema, NULL, NLSQL_DIALECT_POSTGRES, NULL};
+        assert(nlsql_policy_create(ctx, &mismatched_tenant) == NLSQL_OK);
+        assert(nlsql_policy_allow_table(mismatched_tenant, "public", "orders") == NLSQL_OK);
+        assert(nlsql_policy_require_tenant(mismatched_tenant, "public", "orders", "tenant_id") == NLSQL_OK);
+        assert(nlsql_policy_set_runtime_tenant(mismatched_tenant, "tenant_id", NLSQL_TYPE_INT64) == NLSQL_OK);
+        request.policy = mismatched_tenant;
+        assert(nlsql_compile_ir(ctx, &request, &result) == NLSQL_E_TYPE);
+        assert(result != NULL);
+        nlsql_compile_result_destroy(result);
+        result = NULL;
+        nlsql_policy_destroy(mismatched_tenant);
+    }
     check_question("count orders", "count(\"t\".\"id\")", ctx, schema, policy);
     check_question("list orders total", "\"t\".\"total\"", ctx, schema, policy);
     check_question("sum orders total", "sum(\"t\".\"total\")", ctx, schema, policy);
