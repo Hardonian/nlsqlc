@@ -99,6 +99,34 @@ int main(void) {
         nlsql_compile_result_destroy(result);
         result = NULL;
     }
+    {
+        const char *cte_ir = "(nlsql 1 (query (from orders t) (select (field (column t id) id) (field (column t total) total))))";
+        const char *outer_ir = "(nlsql 1 (query (from recent r) (select (field (column r id) id))))";
+        const char *bad_outer_ir = "(nlsql 1 (query (from recent r) (select (field (column r region) region))))";
+        nlsql_cte_request cte_request = {"recent", cte_ir, outer_ir, schema, policy, NLSQL_DIALECT_POSTGRES};
+        assert(nlsql_compile_cte(ctx, &cte_request, &result) == NLSQL_OK);
+        assert(strstr(nlsql_result_sql(result).sql, "WITH \"recent\" AS") != NULL);
+        assert(strstr(nlsql_result_sql(result).sql, "\"r\".\"id\"") != NULL);
+        nlsql_compile_result_destroy(result);
+        result = NULL;
+        cte_request.query_ir = bad_outer_ir;
+        assert(nlsql_compile_cte(ctx, &cte_request, &result) == NLSQL_E_POLICY);
+        assert(result == NULL);
+    }
+    {
+        const nlsql_dialect dialects[] = {NLSQL_DIALECT_POSTGRES, NLSQL_DIALECT_SQLITE, NLSQL_DIALECT_DUCKDB, NLSQL_DIALECT_MYSQL, NLSQL_DIALECT_SQLSERVER};
+        const char *placeholders[] = {"$1", "?1", "?", "?", "@p1"};
+        const char *dialect_ir = "(nlsql 1 (query (from orders t) (select (field (column t id) id)) (where (eq (column t id) (param id int64)))))";
+        size_t d;
+        for (d = 0; d < sizeof(dialects) / sizeof(dialects[0]); ++d) {
+            nlsql_compile_request dialect_request = {dialect_ir, schema, policy, dialects[d], NULL};
+            assert(nlsql_compile_ir(ctx, &dialect_request, &result) == NLSQL_OK);
+            assert(strstr(nlsql_result_sql(result).sql, "SELECT") != NULL);
+            assert(strstr(nlsql_result_sql(result).sql, placeholders[d]) != NULL);
+            nlsql_compile_result_destroy(result);
+            result = NULL;
+        }
+    }
     bad.question = "drop orders"; bad.schema = schema; bad.policy = policy; bad.dialect = NLSQL_DIALECT_POSTGRES;
     assert(nlsql_compile_question(ctx, &bad, &result) == NLSQL_E_UNSUPPORTED);
     assert(result == NULL);

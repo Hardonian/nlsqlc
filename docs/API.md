@@ -11,7 +11,11 @@ The stable public API is `include/nlsql/nlsql.h`. It is C11 and C++-compatible (
 5. Inspect SQL, parameters, risk, complexity, canonical IR, fingerprint, and manifest.
 6. Destroy the result and trusted objects.
 
+`nlsql_compile_cte` compiles a bounded single-source CTE and an outer query against a temporary projected relation scope. The outer query can reference only fields projected by the CTE; underlying tables and unprojected columns are not visible through the CTE alias. CTE and outer parameters are rebased deterministically.
+
 `nlsql_compile_set` independently compiles two IR branches and combines them as `UNION`, `UNION ALL`, `INTERSECT`, or `EXCEPT`, rebasing numbered parameters.
+
+The dialect fixture suite exercises Postgres, SQLite, DuckDB, MySQL, and SQL Server parameter conventions.
 
 `nlsql_compile_inferred` accepts an application-owned inference callback. The callback output is untrusted and is always recompiled through the normal parser/schema/policy path.
 
