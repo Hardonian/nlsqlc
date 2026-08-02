@@ -2,7 +2,9 @@
 """Import a SQLite database schema into nlsqlc's trusted .nlschema format."""
 from __future__ import annotations
 import argparse
+import os
 import sqlite3
+import tempfile
 from pathlib import Path
 
 
@@ -64,6 +66,31 @@ def import_schema(database: Path) -> str:
         return "\n".join(out) + "\n"
 
 
+def atomic_write(path: Path, content: str) -> None:
+    path = path.absolute()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False) as handle:
+            temporary = Path(handle.name)
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        temporary = None
+        try:
+            directory_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        except OSError:
+            pass
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("database", type=Path)
@@ -71,7 +98,7 @@ def main() -> int:
     args = parser.parse_args()
     if not args.database.is_file():
         parser.error(f"database does not exist: {args.database}")
-    args.output.write_text(import_schema(args.database), encoding="utf-8")
+    atomic_write(args.output, import_schema(args.database))
     return 0
 
 
