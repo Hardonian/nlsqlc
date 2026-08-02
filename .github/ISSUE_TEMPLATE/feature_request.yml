@@ -1,0 +1,40 @@
+name: Feature request
+description: Propose a bounded, dependency-free improvement.
+title: "feat: "
+labels: [enhancement, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Proposals should preserve the core boundary: no raw SQL execution, network, credentials, model runtime, or silent policy fallback.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and users affected
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API or behavior
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance tests and compatibility impact
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Design checks
+      options:
+        - label: This does not require raw SQL execution or network access in the core.
+          required: true
+        - label: I considered tenant isolation and fail-closed behavior.
+          required: true

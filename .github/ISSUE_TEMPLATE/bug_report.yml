@@ -1,0 +1,52 @@
+name: Bug report
+description: Report a reproducible compiler, CLI, importer, binding, or release-tool defect.
+title: "bug: "
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include credentials, private keys, customer data, or production connection strings.
+        For suspected security vulnerabilities, use SECURITY.md instead of a public issue.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: 0.1.2 or git SHA
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform and toolchain
+      placeholder: Ubuntu 24.04, GCC 15, CMake 3.30
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction command and minimal input
+      description: Include sanitized IR/schema/policy snippets and the exact command.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior and logs
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety checks
+      options:
+        - label: I removed secrets, credentials, and private data.
+          required: true
+        - label: I searched existing issues and documentation.
+          required: true
