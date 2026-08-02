@@ -4,7 +4,7 @@ nlsqlc is a small, embeddable C11 compiler for a constrained S-expression Query 
 
 This repository ships the scoped 0.1.2 alpha vertical slice. The static CLI supports trusted IR compilation, schema/policy files, deterministic `count`, `list`, `sum`, and `average` question fast paths, PostgreSQL/SQLite/DuckDB/MySQL/SQL Server parameter styles, stable IR fingerprints, deterministic relevance metrics, a Clang/libFuzzer harness, and release artifacts with checksums and an SPDX SBOM.
 
-It does not yet implement unrestricted natural language, the inference callback pipeline, CTEs, windows, set operations, schema importers, language-specific bindings, or signed release provenance. Those remain explicitly tracked as roadmap work rather than claimed capabilities.
+It does not yet implement unrestricted natural language, CTEs, set operations, schema importers, language-specific bindings, or signed release provenance. Window expressions are supported in the bounded IR grammar. Those remaining items are explicitly tracked rather than claimed.
 
 ## Security boundary
 

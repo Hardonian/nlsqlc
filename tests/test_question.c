@@ -20,6 +20,8 @@ static void setup(nlsql_context **ctx, nlsql_schema **schema, nlsql_policy **pol
     assert(nlsql_schema_builder_add_table(*builder, "public", "orders", NLSQL_TABLE_TENANT_SCOPED) == NLSQL_OK);
     assert(nlsql_schema_builder_add_column(*builder, "public", "orders", "id", NLSQL_TYPE_INT64, NLSQL_COLUMN_PRIMARY_KEY) == NLSQL_OK);
     assert(nlsql_schema_builder_add_column(*builder, "public", "orders", "total", NLSQL_TYPE_DECIMAL, 0u) == NLSQL_OK);
+    assert(nlsql_schema_builder_add_column(*builder, "public", "orders", "region", NLSQL_TYPE_TEXT, 0u) == NLSQL_OK);
+    assert(nlsql_schema_builder_add_column(*builder, "public", "orders", "created_at", NLSQL_TYPE_TIMESTAMP, 0u) == NLSQL_OK);
     assert(nlsql_schema_builder_add_column(*builder, "public", "orders", "tenant_id", NLSQL_TYPE_UUID, NLSQL_COLUMN_TENANT_KEY) == NLSQL_OK);
     assert(nlsql_schema_builder_finalize(*builder, schema) == NLSQL_OK);
     assert(nlsql_policy_create(*ctx, policy) == NLSQL_OK);
@@ -64,6 +66,14 @@ int main(void) {
         assert(nlsql_compile_inferred(ctx, &question, &inference, &inferred) == NLSQL_OK);
         assert(inferred != NULL && nlsql_result_sql(inferred).length > 0u);
         nlsql_compile_result_destroy(inferred);
+    }
+    {
+        const char *window_ir = "(nlsql 1 (query (from orders t) (select (field (window (sum (column t total)) (partition-by (column t region)) (order-by (column t created_at) desc)) running_total))))";
+        nlsql_compile_request window_request = {window_ir, schema, policy, NLSQL_DIALECT_POSTGRES, NULL};
+        nlsql_compile_result *window_result = NULL;
+        assert(nlsql_compile_ir(ctx, &window_request, &window_result) == NLSQL_OK);
+        assert(strstr(nlsql_result_sql(window_result).sql, " OVER (PARTITION BY") != NULL);
+        nlsql_compile_result_destroy(window_result);
     }
     bad.question = "drop orders"; bad.schema = schema; bad.policy = policy; bad.dialect = NLSQL_DIALECT_POSTGRES;
     assert(nlsql_compile_question(ctx, &bad, &result) == NLSQL_E_UNSUPPORTED);

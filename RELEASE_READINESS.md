@@ -24,7 +24,7 @@ The repository is release-ready for the scoped 0.1.2 alpha package: a bounded, r
 
 ## 1.0 blockers
 
-This is not an enterprise 1.0 release candidate. Remaining blockers are deliberately explicit: unrestricted natural-language inference and prompt construction, CTE/window/set-operation grammar and emission, full expression type checking, complete dialect-specific conformance fixtures, schema importers, language bindings, ThreadSanitizer/static-analysis matrix, signed provenance, stable schema/policy ABI, and complete public API documentation.
+This is not an enterprise 1.0 release candidate. Remaining blockers are deliberately explicit: unrestricted natural-language inference, CTE/set-operation grammar and emission, full expression type checking, complete dialect-specific conformance fixtures, schema importers, language bindings, ThreadSanitizer/static-analysis matrix, signed provenance, stable schema/policy ABI, and complete public API documentation.
 
 ## Verdict
 
