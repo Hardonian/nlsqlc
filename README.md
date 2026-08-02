@@ -2,9 +2,9 @@
 
 nlsqlc is a small, embeddable C11 compiler for a constrained S-expression Query IR. It resolves identifiers against trusted schema metadata, injects deterministic tenant predicates, and emits parameterized read-only SQL without a database driver, network stack, model runtime, or external library.
 
-This repository ships the scoped 0.1.2 alpha vertical slice. The static CLI supports trusted IR compilation, schema/policy files, deterministic `count`, `list`, `sum`, and `average` question fast paths, PostgreSQL/SQLite/DuckDB/MySQL/SQL Server parameter styles, stable IR fingerprints, deterministic relevance metrics, a Clang/libFuzzer harness, and release artifacts with checksums and an SPDX SBOM.
+This repository ships nlsqlc 0.1.2: a bounded, read-only, policy-checked SQL compiler for trusted Query IR. It supports schema resolution, tenant predicate injection, FK-backed joins, typed parameters and expressions, windows, policy-checked set operations, scoped single-source CTEs, five SQL dialects, deterministic question fast paths, SQLite schema import, C++17 and Python ctypes bindings, inference callbacks, fuzzing, sanitizers, checksums, an SPDX SBOM, and detached GPG release signatures.
 
-It does not yet implement unrestricted natural language, CTEs, set operations, schema importers, language-specific bindings, or signed release provenance. Window expressions are supported in the bounded IR grammar. Those remaining items are explicitly tracked rather than claimed.
+The core deliberately does not execute SQL, connect to databases, call a model, access the network, or accept raw SQL. “Natural language” is an application concern: use `nlsql_compile_inferred` with your own provider callback; its returned IR is always parsed and revalidated. The CTE API is intentionally bounded to one non-recursive source query and a projected outer relation. Unsupported shapes fail closed.
 
 ## Security boundary
 
@@ -32,7 +32,35 @@ See spec/query-ir-v1.ebnf. A minimal input is:
         (from orders o)
         (select (field (column o status) status))))
 
-The compiler adds the configured default limit and any required tenant predicate. See examples and tests for a complete join query.
+The compiler adds the configured default limit and any required tenant predicate. See `spec/query-ir-v1.ebnf` and `tests/test_question.c` for complete examples.
+
+## Five-minute onboarding
+
+```sh
+git clone <local-or-archive-source> nlsqlc
+cd nlsqlc
+make test
+./nlsqlc version
+```
+
+Compile a trusted query with the checked-in example files:
+
+```sh
+./nlsqlc compile \
+  --ir examples/tenant-policy/query.nlir \
+  --schema examples/tenant-policy/example.nlschema \
+  --policy examples/tenant-policy/example.nlpolicy \
+  --dialect postgres
+```
+
+Build a schema from SQLite without adding a runtime dependency:
+
+```sh
+python3 tools/sqlite_schema_import.py app.db /tmp/app.nlschema
+./nlsqlc validate-ir --ir query.nlir --schema /tmp/app.nlschema --policy policy.nlpolicy
+```
+
+For embedders, start with `docs/API.md`, `bindings/cpp/nlsql.hpp`, or `bindings/python/nlsql.py`. Every result is owned by the caller and must be destroyed with `nlsql_compile_result_destroy`.
 
 ## CLI and trusted formats
 

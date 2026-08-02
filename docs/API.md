@@ -38,4 +38,4 @@ The repository also ships a dependency-free C++17 RAII wrapper at `bindings/cpp/
 
 ## Versioning
 
-`NLSQL_VERSION` and `NLSQL_IR_VERSION` identify the public ABI/IR contract. Callers should reject unsupported IR versions before persisting or replaying model output.
+`NLSQL_VERSION`, `NLSQL_IR_VERSION`, and `NLSQL_ABI_VERSION` identify the release, IR, and C ABI contracts. `nlsql_abi_version()` returns the runtime ABI number. Callers should reject unsupported versions before persisting or replaying model output.

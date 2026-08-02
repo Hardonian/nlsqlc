@@ -6,32 +6,37 @@ Date: 2026-08-02
 
 Release-gate command: `tools/release.sh 0.1.2`
 
-- Make build/test: passed; core, negative security, and question fast-path checks passed.
-- Strict GCC compile with the requested warning set and `-Werror`: passed.
-- Strict Clang compile: passed.
-- CMake Release build for static library, shared library, static CLI, and tests: passed with `-Werror` on all targets.
-- CTest: 2/2 passed.
-- ASan/UBSan core test: passed with leak detection enabled.
-- CLI trusted `.nlschema`/`.nlpolicy` validation and PostgreSQL compilation: passed.
-- Amalgamation source comparison and standalone compile: passed.
-- Static CLI check: passed; `nlsqlc` is statically linked.
-- Stable IR fingerprint and relevance metric tests: passed.
-- Clang/libFuzzer harness: built and completed 1,000 ASan/UBSan executions without a crash.
-- Release archive, SHA-256 checksum, and SPDX 2.3 SBOM: generated under `release/`.
-- Meson execution remains unavailable because `meson` is not installed on this host; its strict configuration is present but not claimed as executed.
+- Make build/test: passed; core, security-negative, question, CTE-scope, type, and dialect checks passed.
+- Strict GCC and Clang warning builds: passed.
+- CMake Release build and CTest: passed, 2/2.
+- ThreadSanitizer library/test build and runtime: passed.
+- ASan/UBSan fuzz target: passed 250 executions in the current closure run; prior 1,000-run run also passed.
+- GCC analyzer and Clang analyzer: passed in the recorded release gate.
+- SQLite importer: passed database → generated schema → CLI validation/compilation.
+- C++17 binding and Python ctypes binding: passed smoke tests.
+- Amalgamation standalone compile: passed.
+- Release archive, internal checksums, external checksum, and SPDX SBOM: passed.
+- Detached GPG signing workflow: passed with an isolated temporary keyring; no private key retained.
+- Meson execution is not claimed because `meson` is not installed on this host.
+- Live execution against PostgreSQL, SQLite, DuckDB, MySQL, and SQL Server is not claimed because those database clients/servers are not part of the compiler test environment; dialect SQL/placeholder fixtures are covered.
 
-The repository is release-ready for the scoped 0.1.2 alpha package: a bounded, read-only, policy-checked SQL compiler with typed parameters, canonical IR, tenant enforcement, FK-backed joins, trusted CLI configuration formats, deterministic question fast paths, and a static CLI.
+## Verified scope
 
-## 1.0 blockers
+The 0.1.2 release is a bounded, read-only, policy-checked SQL compiler. It includes typed expressions, tenant enforcement, FK-backed joins, windows, set operations, scoped single-source non-recursive CTEs, five dialect emitters, deterministic question helpers, inference callback revalidation, SQLite schema import, C++/Python bindings, fuzzing, sanitizer/static-analysis coverage, checksums, SBOM, and signing tooling.
 
-This is not an enterprise 1.0 release candidate. Remaining blockers are deliberately explicit: unrestricted natural-language inference, CTE/set-operation grammar and emission, full expression type checking, complete dialect-specific conformance fixtures, schema importers, language bindings, ThreadSanitizer/static-analysis matrix, signed provenance, stable schema/policy ABI, and complete public API documentation.
+## Explicit limits
+
+- The core does not bundle an LLM, natural-language model, database driver, network stack, or SQL execution engine.
+- Natural-language integration is callback-based; callback output is treated as untrusted IR and revalidated.
+- CTE support is intentionally limited to one non-recursive source query and projected outer relation scope.
+- External database execution and Meson remain environment-dependent verification gaps.
 
 ## Verdict
 
-Technical: scoped 0.1.1 alpha release-ready; 1.0 not ready.
+Technical: 0.1.2 release slice verified locally.
 
-Security: the implemented read-only vertical slice passed current negative tests and sanitizers; broader coverage remains required before 1.0.
+Security: fail-closed compiler behavior, tenant/policy enforcement, fuzzing, sanitizers, and static-analysis gates passed for the tested scope.
 
-Packaging: release archive, checksums, and SPDX SBOM generated and verified locally.
+Packaging: archive, checksum, SBOM, amalgamation, binding, and signing workflows passed.
 
-External/production: not ready for an enterprise 1.0 claim until the listed blockers are closed.
+External/production: local compiler readiness is verified; live database compatibility and external publication are not claimed without their environments.
