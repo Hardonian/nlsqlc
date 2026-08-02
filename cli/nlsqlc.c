@@ -2,12 +2,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
+#include <stdint.h>
 
 static char *read_file(const char *path) {
     FILE *f; long n; char *out;
     f = fopen(path, "rb"); if (!f) return NULL;
     if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return NULL; }
-    n = ftell(f); if (n < 0 || fseek(f, 0, SEEK_SET) != 0) { fclose(f); return NULL; }
+    n = ftell(f); if (n < 0 || (unsigned long)n >= (unsigned long)SIZE_MAX || fseek(f, 0, SEEK_SET) != 0) { fclose(f); return NULL; }
     out = (char *)calloc(1, (size_t)n + 1u);
     if (out && fread(out, 1u, (size_t)n, f) != (size_t)n) { free(out); out = NULL; }
     fclose(f); return out;
@@ -38,6 +40,11 @@ static nlsql_dialect parse_dialect(const char *s) {
     return (nlsql_dialect)-1;
 }
 
+static char *trim_leading(char *line) {
+    while (*line != '\0' && isspace((unsigned char)*line)) ++line;
+    return line;
+}
+
 static void usage(void) {
     puts("nlsqlc " NLSQL_VERSION "\n"
          "usage: nlsqlc compile --ir FILE [--schema FILE] [--policy FILE] [--dialect DIALECT]\n"
@@ -57,6 +64,7 @@ static nlsql_status load_schema(nlsql_context *ctx, const char *path, nlsql_sche
         text = read_file(path); if (!text) { nlsql_schema_builder_destroy(b); return NLSQL_E_INVALID_ARGUMENT; }
         line = strtok(text, "\r\n"); st = NLSQL_OK;
         while (line && st == NLSQL_OK) {
+            line = trim_leading(line);
             char kind[16] = {0}, a[128] = {0}, bname[128] = {0}, c[128] = {0}, d[128] = {0};
             if (line[0] != '#' && sscanf(line, "%15s", kind) == 1) {
                 if (strcmp(kind, "nlschema") == 0) { /* header */ }
@@ -64,7 +72,7 @@ static nlsql_status load_schema(nlsql_context *ctx, const char *path, nlsql_sche
                     st = nlsql_schema_builder_add_table(b, a, bname, (strcmp(c, "tenant") == 0) ? NLSQL_TABLE_TENANT_SCOPED : 0u);
                 else if (strcmp(kind, "column") == 0) {
                     int ncol; char *dot; unsigned flags = 0u; d[0] = 0; ncol = sscanf(line, "%15s %127s %127s %127s %127s", kind, a, bname, c, d);
-                    if (ncol < 4) st = NLSQL_E_SCHEMA; else { dot = strchr(bname, '.'); if (strstr(d, "pk")) flags |= NLSQL_COLUMN_PRIMARY_KEY; if (strstr(d, "not_null")) flags |= NLSQL_COLUMN_NOT_NULL; if (strstr(d, "tenant_key")) flags |= NLSQL_COLUMN_TENANT_KEY; if (!dot) st = NLSQL_E_SCHEMA; else { *dot = 0; st = nlsql_schema_builder_add_column(b, a, bname, dot + 1, parse_type(c), flags); } }
+                    if (ncol < 4) st = NLSQL_E_SCHEMA; else { dot = strchr(bname, '.'); if (strstr(d, "pk")) flags |= NLSQL_COLUMN_PRIMARY_KEY; if (strstr(d, "not_null")) flags |= NLSQL_COLUMN_NOT_NULL; if (strstr(d, "tenant_key")) flags |= NLSQL_COLUMN_TENANT_KEY; if (parse_type(c) == NLSQL_TYPE_UNKNOWN) st = NLSQL_E_SCHEMA; else if (!dot) st = NLSQL_E_SCHEMA; else { *dot = 0; st = nlsql_schema_builder_add_column(b, a, bname, dot + 1, parse_type(c), flags); } }
                 } else if (strcmp(kind, "fk") == 0 && sscanf(line, "%15s %127s %127s %127s %127s", kind, a, bname, c, d) == 5) {
                     char *dot = strchr(bname, '.'); char *rdot = strchr(d, '.');
                     if (!dot || !rdot) st = NLSQL_E_SCHEMA; else { *dot = 0; *rdot = 0; st = nlsql_schema_builder_add_foreign_key(b, a, bname, dot + 1, c, d, rdot + 1); }
@@ -87,6 +95,7 @@ static nlsql_status load_policy(nlsql_context *ctx, const char *path, nlsql_poli
         text = read_file(path); if (!text) { nlsql_policy_destroy(p); return NLSQL_E_INVALID_ARGUMENT; }
         line = strtok(text, "\r\n"); st = NLSQL_OK;
         while (line && st == NLSQL_OK) {
+            line = trim_leading(line);
             char kind[24] = {0}, a[128] = {0}, b[128] = {0}, c[128] = {0}; size_t joins, limit;
             if (line[0] != '#' && sscanf(line, "%23s", kind) == 1) {
                 if (strcmp(kind, "nlpolicy") == 0) { }
