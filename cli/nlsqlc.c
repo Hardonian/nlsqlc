@@ -62,8 +62,9 @@ static nlsql_status load_schema(nlsql_context *ctx, const char *path, nlsql_sche
                 if (strcmp(kind, "nlschema") == 0) { /* header */ }
                 else if (strcmp(kind, "table") == 0 && sscanf(line, "%15s %127s %127s %127s", kind, a, bname, c) >= 3)
                     st = nlsql_schema_builder_add_table(b, a, bname, (strcmp(c, "tenant") == 0) ? NLSQL_TABLE_TENANT_SCOPED : 0u);
-                else if (strcmp(kind, "column") == 0 && sscanf(line, "%15s %127s %127s %127s", kind, a, bname, c) == 4) {
-                    char *dot = strchr(bname, '.'); if (!dot) st = NLSQL_E_SCHEMA; else { *dot = 0; st = nlsql_schema_builder_add_column(b, a, bname, dot + 1, parse_type(c), 0u); }
+                else if (strcmp(kind, "column") == 0) {
+                    int ncol; char *dot; unsigned flags = 0u; d[0] = 0; ncol = sscanf(line, "%15s %127s %127s %127s %127s", kind, a, bname, c, d);
+                    if (ncol < 4) st = NLSQL_E_SCHEMA; else { dot = strchr(bname, '.'); if (strstr(d, "pk")) flags |= NLSQL_COLUMN_PRIMARY_KEY; if (strstr(d, "not_null")) flags |= NLSQL_COLUMN_NOT_NULL; if (strstr(d, "tenant_key")) flags |= NLSQL_COLUMN_TENANT_KEY; if (!dot) st = NLSQL_E_SCHEMA; else { *dot = 0; st = nlsql_schema_builder_add_column(b, a, bname, dot + 1, parse_type(c), flags); } }
                 } else if (strcmp(kind, "fk") == 0 && sscanf(line, "%15s %127s %127s %127s %127s", kind, a, bname, c, d) == 5) {
                     char *dot = strchr(bname, '.'); char *rdot = strchr(d, '.');
                     if (!dot || !rdot) st = NLSQL_E_SCHEMA; else { *dot = 0; *rdot = 0; st = nlsql_schema_builder_add_foreign_key(b, a, bname, dot + 1, c, d, rdot + 1); }
