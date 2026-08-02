@@ -15,6 +15,8 @@ The stable public API is `include/nlsql/nlsql.h`. It is C11 and C++-compatible (
 
 `nlsql_compile_inferred` accepts an application-owned inference callback. The callback output is untrusted and is always recompiled through the normal parser/schema/policy path.
 
+The repository also ships a dependency-free C++17 RAII wrapper at `bindings/cpp/nlsql.hpp`. It wraps context/result lifetime and the IR/set compile entry points while preserving the C ABI and error statuses.
+
 ## Ownership
 
 - Context, schema builder, schema, policy, inference output, and compile result are caller-managed.
