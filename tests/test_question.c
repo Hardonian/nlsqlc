@@ -51,6 +51,30 @@ int main(void) {
     nlsql_question_request bad;
     nlsql_compile_result *result = NULL;
     setup(&ctx, &schema, &policy, &builder);
+    {
+        nlsql_policy *empty_policy = NULL;
+        nlsql_compile_request request = {"(nlsql 1 (query (from orders t) (select (field (column t id) id))))", schema, NULL, NLSQL_DIALECT_POSTGRES, NULL};
+        assert(nlsql_policy_create(ctx, &empty_policy) == NLSQL_OK);
+        request.policy = empty_policy;
+        assert(nlsql_compile_ir(ctx, &request, &result) == NLSQL_E_POLICY);
+        assert(result != NULL);
+        nlsql_compile_result_destroy(result);
+        result = NULL;
+        nlsql_policy_destroy(empty_policy);
+    }
+    {
+        nlsql_policy *invalid_tenant = NULL;
+        nlsql_compile_request request = {"(nlsql 1 (query (from orders t) (select (field (column t id) id))))", schema, NULL, NLSQL_DIALECT_POSTGRES, NULL};
+        assert(nlsql_policy_create(ctx, &invalid_tenant) == NLSQL_OK);
+        assert(nlsql_policy_allow_table(invalid_tenant, "public", "orders") == NLSQL_OK);
+        assert(nlsql_policy_require_tenant(invalid_tenant, "public", "orders", "missing_tenant") == NLSQL_OK);
+        request.policy = invalid_tenant;
+        assert(nlsql_compile_ir(ctx, &request, &result) == NLSQL_E_POLICY);
+        assert(result != NULL);
+        nlsql_compile_result_destroy(result);
+        result = NULL;
+        nlsql_policy_destroy(invalid_tenant);
+    }
     check_question("count orders", "count(\"t\".\"id\")", ctx, schema, policy);
     check_question("list orders total", "\"t\".\"total\"", ctx, schema, policy);
     check_question("sum orders total", "sum(\"t\".\"total\")", ctx, schema, policy);
@@ -126,6 +150,15 @@ int main(void) {
             nlsql_compile_result_destroy(result);
             result = NULL;
         }
+    }
+    {
+        const char *sqlserver_limit_ir = "(nlsql 1 (query (from orders t) (select (field (column t id) id)) (limit 10)))";
+        nlsql_compile_request sqlserver_request = {sqlserver_limit_ir, schema, policy, NLSQL_DIALECT_SQLSERVER, NULL};
+        assert(nlsql_compile_ir(ctx, &sqlserver_request, &result) == NLSQL_OK);
+        assert(strstr(nlsql_result_sql(result).sql, "SELECT TOP 10 ") != NULL);
+        assert(strstr(nlsql_result_sql(result).sql, " LIMIT ") == NULL);
+        nlsql_compile_result_destroy(result);
+        result = NULL;
     }
     bad.question = "drop orders"; bad.schema = schema; bad.policy = policy; bad.dialect = NLSQL_DIALECT_POSTGRES;
     assert(nlsql_compile_question(ctx, &bad, &result) == NLSQL_E_UNSUPPORTED);
