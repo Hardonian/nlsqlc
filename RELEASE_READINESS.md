@@ -15,7 +15,7 @@ The repository now has a hardened 0.1.1 development slice: canonical IR output, 
 
 ## Not delivered
 
-This is not a 1.0 release candidate. Missing: question fast paths, inference callback/prompt builder, semantic metrics, canonical serialization/fingerprints/cache callbacks, CTE/window/set-operation support, full type checking, all dialect-specific conformance fixtures, schema/policy file parsers, bindings, fuzz harnesses, ThreadSanitizer/static-analysis matrix, SBOM/provenance/signatures, and complete public API documentation.
+This is not a 1.0 release candidate. Missing: broad question fast paths and inference callback/prompt builder, semantic metrics, fingerprints/cache callbacks, CTE/window/set-operation support, full type checking, all dialect-specific conformance fixtures, bindings, fuzz harnesses, ThreadSanitizer/static-analysis matrix, SBOM/provenance/signatures, and complete public API documentation. Canonical IR output and CLI-only trusted schema/policy parsers are now delivered; they are not yet a stable file-format ABI.
 
 ## Verdict
 
