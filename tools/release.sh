@@ -27,7 +27,9 @@ STAGE="$OUT/nlsqlc-${VERSION}"
 mkdir -p "$STAGE"
 cp -a LICENSE NOTICE README.md CHANGELOG.md RELEASE_READINESS.md SECURITY.md FUZZING.md include dist src cli examples spec docs bindings tools fuzz CMakeLists.txt Makefile meson.build install.sh "$STAGE/"
 printf 'nlsqlc %s\n' "$VERSION" > "$STAGE/VERSION"
-find "$STAGE" -type f -print0 | sort -z | xargs -0 sha256sum > "$STAGE/SHA256SUMS"
+find "$STAGE" -type d -name '__pycache__' -prune -exec rm -rf {} +
+find "$STAGE" -type f -name '*.o' -delete
+find "$STAGE" -type f ! -name 'SHA256SUMS' -print0 | sort -z | xargs -0 sha256sum > "$STAGE/SHA256SUMS"
 python3 - "$STAGE" "$STAGE/sbom.spdx.json" <<'PY'
 import json, pathlib, sys
 root = pathlib.Path(sys.argv[1]); out = pathlib.Path(sys.argv[2])
