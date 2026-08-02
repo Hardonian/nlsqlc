@@ -31,3 +31,12 @@ jobs:
           cc -I"$RUNNER_TEMP/nlsqlc/include" "$RUNNER_TEMP/consumer.c" "$RUNNER_TEMP/nlsqlc/lib/libnlsql.a" -o "$RUNNER_TEMP/consumer"
           "$RUNNER_TEMP/consumer"
           PKG_CONFIG_PATH="$RUNNER_TEMP/nlsqlc/lib/pkgconfig" pkg-config --exists nlsqlc
+  memory-sanitizer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run MemorySanitizer tests
+        run: |
+          CC=clang cmake -S . -B build-msan -DNLSQL_BUILD_TESTS=ON -DNLSQL_BUILD_CLI=OFF -DCMAKE_C_FLAGS='-fsanitize=memory -fno-omit-frame-pointer -g' -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=memory'
+          cmake --build build-msan --parallel
+          MSAN_OPTIONS=halt_on_error=1:exit_code=86 ctest --test-dir build-msan --output-on-failure
