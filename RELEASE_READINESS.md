@@ -4,19 +4,31 @@ Date: 2026-08-01
 
 ## Evidence run
 
-- `make clean && make all && make test`: passed; core test and negative security checks passed.
-- strict direct compile with the requested warning set and `-Werror`: passed.
-- CMake configure/build/CTest: passed in `build-final` after final join-path hardening.
-- amalgamation standalone `examples/minimal/main.c` using `dist/nlsql.c` and `dist/nlsql.h`: passed after final source sync.
-- AddressSanitizer/UndefinedBehaviorSanitizer test binary: passed after final join-path hardening.
-- Meson: unavailable on this host (`meson` not installed), so Meson execution is not claimed.
+Release-gate command: `tools/release.sh 0.1.1`
 
-The repository now has a hardened 0.1.1 development slice: canonical IR output, typed parameter metadata, schema-resolved deny-column enforcement, foreign-key-backed join enforcement, and CLI loading of trusted `.nlschema`/`.nlpolicy` files with `validate-ir`.
+- Make build/test: passed; core and negative security checks passed.
+- Strict GCC compile with the requested warning set and `-Werror`: passed.
+- Strict Clang compile: passed.
+- CMake Release build for static library, shared library, CLI, and tests: passed with `-Werror` on all targets.
+- CTest: 1/1 passed.
+- ASan/UBSan core test: passed with leak detection enabled.
+- CLI trusted `.nlschema`/`.nlpolicy` validation and PostgreSQL compilation: passed.
+- Amalgamation source comparison and standalone compile: passed.
+- Release archive, SHA-256 checksum, and SPDX 2.3 SBOM: generated under `release/`.
+- Meson execution remains unavailable because `meson` is not installed on this host; its strict configuration is present but not claimed as executed.
 
-## Not delivered
+The repository is release-ready for the scoped 0.1.1 alpha package: a bounded, read-only, policy-checked SQL compiler with typed parameters, canonical IR, tenant enforcement, FK-backed joins, and trusted CLI configuration formats.
 
-This is not a 1.0 release candidate. Missing: broad question fast paths and inference callback/prompt builder, semantic metrics, fingerprints/cache callbacks, CTE/window/set-operation support, full type checking, all dialect-specific conformance fixtures, bindings, fuzz harnesses, ThreadSanitizer/static-analysis matrix, SBOM/provenance/signatures, and complete public API documentation. Canonical IR output and CLI-only trusted schema/policy parsers are now delivered; they are not yet a stable file-format ABI.
+## 1.0 blockers
+
+This is not an enterprise 1.0 release candidate. Remaining blockers are deliberately explicit: broader question fast paths and inference callback/prompt builder, semantic metrics, fingerprints/cache callbacks, CTE/window/set-operation support, full expression type checking, complete dialect-specific conformance fixtures, language bindings, fuzz/property harnesses, ThreadSanitizer/static-analysis matrix, signed provenance, stable schema/policy ABI, and complete public API documentation.
 
 ## Verdict
 
-Prototype / early alpha, not production-ready. The security-critical vertical slice is real and tested, but the requested enterprise feature surface is substantially larger than this first implementation.
+Technical: scoped 0.1.1 alpha release-ready; 1.0 not ready.
+
+Security: the implemented read-only vertical slice passed current negative tests and sanitizers; broader coverage remains required before 1.0.
+
+Packaging: release archive, checksums, and SPDX SBOM generated and verified locally.
+
+External/production: not ready for an enterprise 1.0 claim until the listed blockers are closed.
