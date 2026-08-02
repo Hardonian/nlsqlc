@@ -10,6 +10,7 @@ jobs:
       - run: cmake -S . -B build -DNLSQL_BUILD_TESTS=ON -DNLSQL_BUILD_CLI=ON
       - run: cmake --build build --parallel
       - run: ctest --test-dir build --output-on-failure
+      - run: NLSQL_LIBRARY="$PWD/build/libnlsql.so" python3 tests/test_sqlite_integration.py
       - run: make clean && make all && make test
       - name: Run ThreadSanitizer tests
         run: cmake -S . -B build-tsan -DNLSQL_BUILD_TESTS=ON -DNLSQL_BUILD_CLI=OFF -DCMAKE_C_FLAGS='-fsanitize=thread -fno-omit-frame-pointer -g' -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=thread' && cmake --build build-tsan --parallel && TSAN_OPTIONS=halt_on_error=1 ctest --test-dir build-tsan --output-on-failure
