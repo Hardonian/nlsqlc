@@ -54,28 +54,32 @@ private:
     nlsql_compile_result *result_;
 };
 
+inline Result finish_result(nlsql_status status, nlsql_compile_result *result) {
+    if (status != NLSQL_OK) {
+        nlsql_compile_result_destroy(result);
+        throw_status(status);
+    }
+    return Result(result);
+}
+
 inline Result compile_ir(Context &context, const nlsql_compile_request &request) {
     nlsql_compile_result *result = nullptr;
-    throw_status(nlsql_compile_ir(context.get(), &request, &result));
-    return Result(result);
+    return finish_result(nlsql_compile_ir(context.get(), &request, &result), result);
 }
 
 inline Result compile_set(Context &context, const nlsql_set_request &request) {
     nlsql_compile_result *result = nullptr;
-    throw_status(nlsql_compile_set(context.get(), &request, &result));
-    return Result(result);
+    return finish_result(nlsql_compile_set(context.get(), &request, &result), result);
 }
 
 inline Result compile_cte(Context &context, const nlsql_cte_request &request) {
     nlsql_compile_result *result = nullptr;
-    throw_status(nlsql_compile_cte(context.get(), &request, &result));
-    return Result(result);
+    return finish_result(nlsql_compile_cte(context.get(), &request, &result), result);
 }
 
 inline Result compile_question(Context &context, const nlsql_question_request &request) {
     nlsql_compile_result *result = nullptr;
-    throw_status(nlsql_compile_question(context.get(), &request, &result));
-    return Result(result);
+    return finish_result(nlsql_compile_question(context.get(), &request, &result), result);
 }
 
 } // namespace nlsqlc

@@ -10,6 +10,7 @@ jobs:
       - run: cmake -S . -B build -DNLSQL_BUILD_TESTS=ON -DNLSQL_BUILD_CLI=ON
       - run: cmake --build build --parallel
       - run: ctest --test-dir build --output-on-failure
+      - run: c++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I. -Iinclude tests/test_cpp_binding.cpp build/libnlsql.so -Wl,-rpath,"$PWD/build" -o /tmp/nlsqlc-cpp-binding-test && /tmp/nlsqlc-cpp-binding-test
       - run: NLSQL_LIBRARY="$PWD/build/libnlsql.so" python3 tests/test_sqlite_integration.py
       - run: make clean && make all && make test
       - name: Run ThreadSanitizer tests
