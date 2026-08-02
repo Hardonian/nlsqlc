@@ -44,6 +44,7 @@ typedef struct { size_t max_ir_bytes, max_schema_objects, max_sql_bytes, max_nod
 typedef struct { nlsql_limits limits; int diagnostic_errors; } nlsql_config;
 typedef struct { const char *sql; size_t length; } nlsql_sql_view;
 typedef struct { size_t position; const char *name; nlsql_type type; nlsql_param_source source; int runtime_required; } nlsql_param_view;
+typedef struct { size_t offset; size_t line; size_t column; nlsql_status status; const char *code; const char *message; } nlsql_diagnostic_view;
 typedef struct { const char *question; const nlsql_schema *schema; const nlsql_policy *policy; nlsql_dialect dialect; } nlsql_question_request;
 typedef struct { const char *ir; const nlsql_schema *schema; const nlsql_policy *policy; nlsql_dialect dialect; const char *trace_id; } nlsql_compile_request;
 typedef struct { const char *cte_name; const char *cte_ir; const char *query_ir; const nlsql_schema *schema; const nlsql_policy *policy; nlsql_dialect dialect; } nlsql_cte_request;
@@ -74,6 +75,7 @@ NLSQL_API nlsql_status nlsql_policy_create(nlsql_context *, nlsql_policy **);
 NLSQL_API nlsql_status nlsql_policy_allow_table(nlsql_policy *, const char *, const char *);
 NLSQL_API nlsql_status nlsql_policy_deny_column(nlsql_policy *, const char *, const char *, const char *);
 NLSQL_API nlsql_status nlsql_policy_require_tenant(nlsql_policy *, const char *, const char *, const char *);
+NLSQL_API nlsql_status nlsql_policy_require_tenant_typed(nlsql_policy *, const char *, const char *, const char *, nlsql_type);
 NLSQL_API nlsql_status nlsql_policy_set_limits(nlsql_policy *, size_t, size_t);
 NLSQL_API nlsql_status nlsql_policy_set_runtime_tenant(nlsql_policy *, const char *, nlsql_type);
 NLSQL_API void nlsql_policy_destroy(nlsql_policy *);
@@ -94,6 +96,8 @@ NLSQL_API nlsql_risk nlsql_result_risk(const nlsql_compile_result *);
 NLSQL_API unsigned nlsql_result_complexity(const nlsql_compile_result *);
 NLSQL_API uint64_t nlsql_result_fingerprint(const nlsql_compile_result *);
 NLSQL_API double nlsql_result_relevance_score(const nlsql_compile_result *);
+NLSQL_API size_t nlsql_result_diagnostic_count(const nlsql_compile_result *);
+NLSQL_API nlsql_diagnostic_view nlsql_result_diagnostic(const nlsql_compile_result *, size_t);
 
 #ifdef __cplusplus
 }

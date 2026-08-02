@@ -22,6 +22,18 @@ jobs:
           build-fuzz/nlsql-fuzz -runs=250 fuzz-corpus
 
       - run: tools/check-release-consistency.sh
+      - name: Run Meson matrix lane
+        run: |
+          python3 -m pip install --user meson
+          meson setup build-meson
+          meson compile -C build-meson
+          meson test -C build-meson --print-errorlogs
+      - name: Run Python property and importer tests
+        run: |
+          python3 -m pip install --user pytest hypothesis
+          pytest -q tests/test_importer.py tests/test_properties.py
+      - run: tools/check-abi-compat.sh
+      - run: python3 tools/check-release-evidence.py
       - name: Run release readiness gate
         run: SOURCE_DATE_EPOCH=1700000000 tools/release.sh 0.1.2 && tools/verify-release.sh 0.1.2
       - name: Install and test CMake package

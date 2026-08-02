@@ -4,8 +4,8 @@ table public customers tenant
 column public orders.customer_id int64
 column public orders.total_amount decimal
 column public orders.status text
-column public orders.tenant_id uuid
+column public orders.tenant_id uuid tenant_key
 column public customers.id int64
 column public customers.region text
-column public customers.tenant_id uuid
+column public customers.tenant_id uuid tenant_key
 fk public orders.customer_id public customers.id

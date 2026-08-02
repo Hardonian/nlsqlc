@@ -19,6 +19,8 @@ The dialect fixture suite exercises Postgres, SQLite, DuckDB, MySQL, and SQL Ser
 
 `nlsql_compile_inferred` accepts an application-owned inference callback. The callback output is untrusted and is always recompiled through the normal parser/schema/policy path.
 
+Tenant rules can be configured with `nlsql_policy_require_tenant` for legacy untyped callers or `nlsql_policy_require_tenant_typed` for explicit schema/policy type agreement. Typed native `.nlpolicy` records use `tenant schema table column type` and fail closed when the declared type does not match the trusted schema.
+
 The repository also ships a dependency-free C++17 RAII wrapper at `bindings/cpp/nlsql.hpp`. It wraps context/result lifetime and the IR/set compile entry points while preserving the C ABI and error statuses.
 
 ## Ownership

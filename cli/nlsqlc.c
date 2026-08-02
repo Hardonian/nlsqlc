@@ -108,12 +108,12 @@ static nlsql_status load_policy(nlsql_context *ctx, const char *path, nlsql_poli
         line = strtok(text, "\r\n"); st = NLSQL_OK;
         while (line && st == NLSQL_OK) {
             line = trim_leading(line);
-            char kind[24] = {0}, a[128] = {0}, b[128] = {0}, c[128] = {0}; size_t joins, limit;
+            char kind[24] = {0}, a[128] = {0}, b[128] = {0}, c[128] = {0}, d[128] = {0}; size_t joins, limit;
             if (line[0] != '#' && sscanf(line, "%23s", kind) == 1) {
                 if (strcmp(kind, "nlpolicy") == 0 && line_word_count(line, 2u, 2u)) { }
                 else if (strcmp(kind, "allow_table") == 0 && line_word_count(line, 3u, 3u) && sscanf(line, "%23s %127s %127s", kind, a, b) == 3) st = nlsql_policy_allow_table(p, a, b);
                 else if (strcmp(kind, "deny_column") == 0 && line_word_count(line, 4u, 4u) && sscanf(line, "%23s %127s %127s %127s", kind, a, b, c) == 4) st = nlsql_policy_deny_column(p, a, b, c);
-                else if (strcmp(kind, "tenant") == 0 && line_word_count(line, 4u, 4u) && sscanf(line, "%23s %127s %127s %127s", kind, a, b, c) == 4) st = nlsql_policy_require_tenant(p, a, b, c);
+                else if (strcmp(kind, "tenant") == 0 && line_word_count(line, 5u, 5u) && sscanf(line, "%23s %127s %127s %127s %127s", kind, a, b, c, d) == 5) { nlsql_type tenant_type = parse_type(d); st = tenant_type == NLSQL_TYPE_UNKNOWN ? NLSQL_E_TYPE : nlsql_policy_require_tenant_typed(p, a, b, c, tenant_type); }
                 else if (strcmp(kind, "limit") == 0 && line_word_count(line, 3u, 3u) && sscanf(line, "%23s %zu %zu", kind, &joins, &limit) == 3) st = nlsql_policy_set_limits(p, joins, limit);
                 else if (strcmp(kind, "runtime_tenant") == 0 && line_word_count(line, 3u, 3u) && sscanf(line, "%23s %127s %127s", kind, a, b) == 3) st = nlsql_policy_set_runtime_tenant(p, a, parse_type(b));
                 else st = NLSQL_E_PARSE;

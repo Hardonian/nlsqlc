@@ -25,7 +25,7 @@ ASAN_OPTIONS=detect_leaks=1 cc -std=c11 -O1 -g -fsanitize=address,undefined -fno
 ASAN_OPTIONS=detect_leaks=1 "$BUILD-asan" >/dev/null
 STAGE="$OUT/nlsqlc-${VERSION}"
 mkdir -p "$STAGE"
-cp -a LICENSE NOTICE README.md CHANGELOG.md RELEASE_READINESS.md SECURITY.md FUZZING.md include dist src cli examples spec docs bindings tools fuzz CMakeLists.txt Makefile meson.build install.sh "$STAGE/"
+cp -a LICENSE NOTICE README.md CHANGELOG.md RELEASE_READINESS.md RELEASE_MATRIX.md CLOSURE_REGISTER.md SECURITY.md FUZZING.md include dist src cli examples spec docs bindings tools fuzz tests oss-fuzz CMakeLists.txt Makefile meson.build install.sh "$STAGE/"
 printf 'nlsqlc %s\n' "$VERSION" > "$STAGE/VERSION"
 find "$STAGE" -type d -name '__pycache__' -prune -exec rm -rf {} +
 find "$STAGE" -type f -name '*.o' -delete

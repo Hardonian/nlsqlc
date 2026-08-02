@@ -35,7 +35,12 @@ def ident(value: str) -> str:
     return value
 
 
-def import_schema(database: Path) -> str:
+def import_schema(database: Path, tenant_columns: dict[str, str] | None = None) -> str:
+    """Import schema with explicit tenancy mapping keyed by table name.
+
+    No column is treated as a tenant key unless the caller explicitly maps it.
+    """
+    tenant_columns = tenant_columns or {}
     uri = f"file:{database.resolve()}?mode=ro"
     with sqlite3.connect(uri, uri=True) as db:
         rows = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").fetchall()
@@ -44,7 +49,10 @@ def import_schema(database: Path) -> str:
         for table in sorted(tables):
             columns = db.execute(f'PRAGMA table_info("{table}")').fetchall()
             names = {ident(str(row[1])) for row in columns}
-            tenant = " tenant" if "tenant_id" in names else ""
+            tenant_column = tenant_columns.get(table)
+            if tenant_column is not None and tenant_column not in names:
+                raise ValueError(f"configured tenant column is missing from table {table}: {tenant_column}")
+            tenant = " tenant" if tenant_column else ""
             out.append(f"table public {table}{tenant}")
             for _, name, declared, notnull, _, pk in columns:
                 name = ident(str(name))
@@ -53,7 +61,7 @@ def import_schema(database: Path) -> str:
                     flags.append("pk")
                 if notnull:
                     flags.append("not_null")
-                if name == "tenant_id":
+                if tenant_column is not None and name == tenant_column:
                     flags.append("tenant_key")
                 suffix = " " + ",".join(flags) if flags else ""
                 out.append(f"column public {table}.{name} {sql_type(str(declared))}{suffix}")
@@ -95,10 +103,20 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("database", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--tenant-table", action="append", default=[], metavar="TABLE=COLUMN", help="Explicitly mark a table column as tenant key; repeatable")
     args = parser.parse_args()
     if not args.database.is_file():
         parser.error(f"database does not exist: {args.database}")
-    atomic_write(args.output, import_schema(args.database))
+    tenant_columns: dict[str, str] = {}
+    for mapping in args.tenant_table:
+        if "=" not in mapping:
+            parser.error(f"invalid --tenant-table mapping: {mapping!r}; expected TABLE=COLUMN")
+        table, column = mapping.split("=", 1)
+        try:
+            tenant_columns[ident(table)] = ident(column)
+        except ValueError as exc:
+            parser.error(str(exc))
+    atomic_write(args.output, import_schema(args.database, tenant_columns))
     return 0
 
 
