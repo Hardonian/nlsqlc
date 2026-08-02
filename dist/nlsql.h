@@ -10,12 +10,16 @@ extern "C" {
 
 #if defined(_WIN32) && defined(NLSQL_BUILD_SHARED)
 #define NLSQL_API __declspec(dllexport)
+#define NLSQL_DEPRECATED(message) __declspec(deprecated(message))
 #elif defined(_WIN32)
 #define NLSQL_API __declspec(dllimport)
+#define NLSQL_DEPRECATED(message) __declspec(deprecated(message))
 #elif defined(__GNUC__) || defined(__clang__)
 #define NLSQL_API __attribute__((visibility("default")))
+#define NLSQL_DEPRECATED(message) __attribute__((deprecated(message)))
 #else
 #define NLSQL_API
+#define NLSQL_DEPRECATED(message)
 #endif
 
 #define NLSQL_VERSION "0.1.2"

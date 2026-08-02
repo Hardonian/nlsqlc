@@ -14,7 +14,11 @@ jobs:
       - name: Run ThreadSanitizer tests
         run: cmake -S . -B build-tsan -DNLSQL_BUILD_TESTS=ON -DNLSQL_BUILD_CLI=OFF -DCMAKE_C_FLAGS='-fsanitize=thread -fno-omit-frame-pointer -g' -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=thread' && cmake --build build-tsan --parallel && TSAN_OPTIONS=halt_on_error=1 ctest --test-dir build-tsan --output-on-failure
       - name: Run Clang fuzz target
-        run: CC=clang cmake -S . -B build-fuzz -DNLSQL_BUILD_TESTS=OFF -DNLSQL_BUILD_CLI=OFF -DNLSQL_BUILD_FUZZ=ON && cmake --build build-fuzz --target nlsql-fuzz
+        run: |
+          CC=clang cmake -S . -B build-fuzz -DNLSQL_BUILD_TESTS=OFF -DNLSQL_BUILD_CLI=OFF -DNLSQL_BUILD_FUZZ=ON
+          cmake --build build-fuzz --target nlsql-fuzz
+          build-fuzz/nlsql-fuzz -runs=250 fuzz-corpus
+
       - run: tools/check-release-consistency.sh
       - name: Run release readiness gate
         run: SOURCE_DATE_EPOCH=1700000000 tools/release.sh 0.1.2 && tools/verify-release.sh 0.1.2
