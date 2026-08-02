@@ -2,7 +2,120 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-static char *read_file(const char *p){FILE*f;long n;char*b;if(!p)return NULL;f=fopen(p,"rb");if(!f)return NULL;if(fseek(f,0,SEEK_END)!=0){fclose(f);return NULL;}n=ftell(f);if(n<0||fseek(f,0,SEEK_SET)!=0){fclose(f);return NULL;}b=(char*)calloc(1,(size_t)n+1u);if(b&&fread(b,1,(size_t)n,f)!=(size_t)n){free(b);b=NULL;}fclose(f);return b;}
-static void usage(void){puts("nlsqlc 0.1.0\nusage: nlsqlc compile --ir FILE [--dialect postgres|sqlite|duckdb|mysql|sqlserver]\n       nlsqlc version\n       nlsqlc grammar");}
-static nlsql_dialect dialect(const char*s){if(!s||strcmp(s,"postgres")==0)return NLSQL_DIALECT_POSTGRES;if(strcmp(s,"sqlite")==0)return NLSQL_DIALECT_SQLITE;if(strcmp(s,"duckdb")==0)return NLSQL_DIALECT_DUCKDB;if(strcmp(s,"mysql")==0)return NLSQL_DIALECT_MYSQL;if(strcmp(s,"sqlserver")==0)return NLSQL_DIALECT_SQLSERVER;return NLSQL_DIALECT_POSTGRES;}
-int main(int argc,char**argv){nlsql_context*c=NULL;nlsql_schema_builder*b=NULL;nlsql_schema*s=NULL;nlsql_policy*p=NULL;nlsql_compile_result*r=NULL;nlsql_config cfg={0};nlsql_compile_request req={0};char*ir=NULL;const char*file=NULL;int i; nlsql_status st;if(argc<2||strcmp(argv[1],"--help")==0||strcmp(argv[1],"-h")==0){usage();return argc<2?2:0;}if(strcmp(argv[1],"version")==0){puts(NLSQL_VERSION);return 0;}if(strcmp(argv[1],"grammar")==0){puts("(nlsql 1 (query (from IDENT [IDENT]) (select (field EXPR IDENT)) ...))");return 0;}if(strcmp(argv[1],"compile")!=0){fprintf(stderr,"unknown command: %s\n",argv[1]);return 2;}req.dialect=NLSQL_DIALECT_POSTGRES;for(i=2;i<argc;i++){if(strcmp(argv[i],"--ir")==0&&i+1<argc)file=argv[++i];else if(strcmp(argv[i],"--dialect")==0&&i+1<argc)req.dialect=dialect(argv[++i]);else{fprintf(stderr,"unknown argument: %s\n",argv[i]);return 2;}}if(!file||(ir=read_file(file))==NULL){fputs("cannot read --ir file\n",stderr);return 2;}st=nlsql_context_create(&cfg,&c);if(st==NLSQL_OK)st=nlsql_schema_builder_create(c,&b);if(st==NLSQL_OK)st=nlsql_schema_builder_add_table(b,"public","orders",NLSQL_TABLE_TENANT_SCOPED);if(st==NLSQL_OK)st=nlsql_schema_builder_add_column(b,"public","orders","tenant_id",NLSQL_TYPE_UUID,NLSQL_COLUMN_TENANT_KEY);if(st==NLSQL_OK)st=nlsql_schema_builder_add_column(b,"public","orders","id",NLSQL_TYPE_INT64,NLSQL_COLUMN_PRIMARY_KEY);if(st==NLSQL_OK)st=nlsql_schema_builder_finalize(b,&s);if(st==NLSQL_OK)st=nlsql_policy_create(c,&p);if(st==NLSQL_OK)st=nlsql_policy_allow_table(p,"public","orders");if(st==NLSQL_OK)st=nlsql_policy_require_tenant(p,"public","orders","tenant_id");if(st==NLSQL_OK)st=nlsql_policy_set_runtime_tenant(p,"tenant_id",NLSQL_TYPE_UUID);req.ir=ir;req.schema=s;req.policy=p;if(st==NLSQL_OK)st=nlsql_compile_ir(c,&req,&r);if(st==NLSQL_OK){puts(nlsql_result_sql(r).sql);puts("-- manifest --");fputs(nlsql_result_manifest(r),stdout);}else fprintf(stderr,"%s: %s\n",nlsql_status_name(st),r?nlsql_result_error(r):"setup failure");nlsql_compile_result_destroy(r);nlsql_policy_destroy(p);nlsql_schema_destroy(s);nlsql_schema_builder_destroy(b);nlsql_context_destroy(c);free(ir);return st==NLSQL_OK?0:1;}
+
+static char *read_file(const char *path) {
+    FILE *f; long n; char *out;
+    f = fopen(path, "rb"); if (!f) return NULL;
+    if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return NULL; }
+    n = ftell(f); if (n < 0 || fseek(f, 0, SEEK_SET) != 0) { fclose(f); return NULL; }
+    out = (char *)calloc(1, (size_t)n + 1u);
+    if (out && fread(out, 1u, (size_t)n, f) != (size_t)n) { free(out); out = NULL; }
+    fclose(f); return out;
+}
+
+static nlsql_type parse_type(const char *s) {
+    if (!s) return NLSQL_TYPE_UNKNOWN;
+    if (strcmp(s, "boolean") == 0) return NLSQL_TYPE_BOOLEAN;
+    if (strcmp(s, "int64") == 0) return NLSQL_TYPE_INT64;
+    if (strcmp(s, "uint64") == 0) return NLSQL_TYPE_UINT64;
+    if (strcmp(s, "decimal") == 0) return NLSQL_TYPE_DECIMAL;
+    if (strcmp(s, "float64") == 0) return NLSQL_TYPE_FLOAT64;
+    if (strcmp(s, "text") == 0) return NLSQL_TYPE_TEXT;
+    if (strcmp(s, "binary") == 0) return NLSQL_TYPE_BINARY;
+    if (strcmp(s, "uuid") == 0) return NLSQL_TYPE_UUID;
+    if (strcmp(s, "date") == 0) return NLSQL_TYPE_DATE;
+    if (strcmp(s, "timestamp") == 0) return NLSQL_TYPE_TIMESTAMP;
+    if (strcmp(s, "timestamptz") == 0) return NLSQL_TYPE_TIMESTAMPTZ;
+    return NLSQL_TYPE_UNKNOWN;
+}
+
+static nlsql_dialect parse_dialect(const char *s) {
+    if (!s || strcmp(s, "postgres") == 0) return NLSQL_DIALECT_POSTGRES;
+    if (strcmp(s, "sqlite") == 0) return NLSQL_DIALECT_SQLITE;
+    if (strcmp(s, "duckdb") == 0) return NLSQL_DIALECT_DUCKDB;
+    if (strcmp(s, "mysql") == 0) return NLSQL_DIALECT_MYSQL;
+    if (strcmp(s, "sqlserver") == 0) return NLSQL_DIALECT_SQLSERVER;
+    return (nlsql_dialect)-1;
+}
+
+static void usage(void) {
+    puts("nlsqlc 0.1.0\n"
+         "usage: nlsqlc compile --ir FILE [--schema FILE] [--policy FILE] [--dialect DIALECT]\n"
+         "       nlsqlc validate-ir --ir FILE [--schema FILE] [--policy FILE]\n"
+         "       nlsqlc version\n       nlsqlc grammar\n"
+         "formats: .nlschema and .nlpolicy are trusted line-oriented config files");
+}
+
+static nlsql_status load_schema(nlsql_context *ctx, const char *path, nlsql_schema **out, nlsql_schema_builder **builder_out) {
+    nlsql_schema_builder *b = NULL; char *text = NULL; char *line; nlsql_status st;
+    if (nlsql_schema_builder_create(ctx, &b) != NLSQL_OK) return NLSQL_E_OOM;
+    if (!path) {
+        st = nlsql_schema_builder_add_table(b, "public", "orders", NLSQL_TABLE_TENANT_SCOPED);
+        if (st == NLSQL_OK) st = nlsql_schema_builder_add_column(b, "public", "orders", "tenant_id", NLSQL_TYPE_UUID, NLSQL_COLUMN_TENANT_KEY);
+        if (st == NLSQL_OK) st = nlsql_schema_builder_add_column(b, "public", "orders", "id", NLSQL_TYPE_INT64, NLSQL_COLUMN_PRIMARY_KEY);
+    } else {
+        text = read_file(path); if (!text) { nlsql_schema_builder_destroy(b); return NLSQL_E_INVALID_ARGUMENT; }
+        line = strtok(text, "\r\n"); st = NLSQL_OK;
+        while (line && st == NLSQL_OK) {
+            char kind[16] = {0}, a[128] = {0}, bname[128] = {0}, c[128] = {0}, d[128] = {0};
+            if (line[0] != '#' && sscanf(line, "%15s", kind) == 1) {
+                if (strcmp(kind, "nlschema") == 0) { /* header */ }
+                else if (strcmp(kind, "table") == 0 && sscanf(line, "%15s %127s %127s %127s", kind, a, bname, c) >= 3)
+                    st = nlsql_schema_builder_add_table(b, a, bname, (strcmp(c, "tenant") == 0) ? NLSQL_TABLE_TENANT_SCOPED : 0u);
+                else if (strcmp(kind, "column") == 0 && sscanf(line, "%15s %127s %127s %127s", kind, a, bname, c) == 4) {
+                    char *dot = strchr(bname, '.'); if (!dot) st = NLSQL_E_SCHEMA; else { *dot = 0; st = nlsql_schema_builder_add_column(b, a, bname, dot + 1, parse_type(c), 0u); }
+                } else if (strcmp(kind, "fk") == 0 && sscanf(line, "%15s %127s %127s %127s %127s", kind, a, bname, c, d) == 5) {
+                    char *dot = strchr(bname, '.'); char *rdot = strchr(d, '.');
+                    if (!dot || !rdot) st = NLSQL_E_SCHEMA; else { *dot = 0; *rdot = 0; st = nlsql_schema_builder_add_foreign_key(b, a, bname, dot + 1, c, d, rdot + 1); }
+                } else st = NLSQL_E_PARSE;
+            }
+            line = strtok(NULL, "\r\n");
+        }
+    }
+    free(text);
+    if (st != NLSQL_OK) { nlsql_schema_builder_destroy(b); return st; }
+    st = nlsql_schema_builder_finalize(b, out); if (st != NLSQL_OK) { nlsql_schema_builder_destroy(b); return st; }
+    *builder_out = b; return NLSQL_OK;
+}
+
+static nlsql_status load_policy(nlsql_context *ctx, const char *path, nlsql_policy **out) {
+    nlsql_policy *p = NULL; char *text = NULL; char *line; nlsql_status st;
+    if (nlsql_policy_create(ctx, &p) != NLSQL_OK) return NLSQL_E_OOM;
+    if (!path) { st = nlsql_policy_require_tenant(p, "public", "orders", "tenant_id"); }
+    else {
+        text = read_file(path); if (!text) { nlsql_policy_destroy(p); return NLSQL_E_INVALID_ARGUMENT; }
+        line = strtok(text, "\r\n"); st = NLSQL_OK;
+        while (line && st == NLSQL_OK) {
+            char kind[24] = {0}, a[128] = {0}, b[128] = {0}, c[128] = {0}; size_t joins, limit;
+            if (line[0] != '#' && sscanf(line, "%23s", kind) == 1) {
+                if (strcmp(kind, "nlpolicy") == 0) { }
+                else if (strcmp(kind, "allow_table") == 0 && sscanf(line, "%23s %127s %127s", kind, a, b) == 3) st = nlsql_policy_allow_table(p, a, b);
+                else if (strcmp(kind, "deny_column") == 0 && sscanf(line, "%23s %127s %127s %127s", kind, a, b, c) == 4) st = nlsql_policy_deny_column(p, a, b, c);
+                else if (strcmp(kind, "tenant") == 0 && sscanf(line, "%23s %127s %127s %127s", kind, a, b, c) == 4) st = nlsql_policy_require_tenant(p, a, b, c);
+                else if (strcmp(kind, "limit") == 0 && sscanf(line, "%23s %zu %zu", kind, &joins, &limit) == 3) st = nlsql_policy_set_limits(p, joins, limit);
+                else if (strcmp(kind, "runtime_tenant") == 0 && sscanf(line, "%23s %127s %127s", kind, a, b) == 3) st = nlsql_policy_set_runtime_tenant(p, a, parse_type(b));
+                else st = NLSQL_E_PARSE;
+            }
+            line = strtok(NULL, "\r\n");
+        }
+    }
+    free(text); if (st != NLSQL_OK) { nlsql_policy_destroy(p); return st; } *out = p; return NLSQL_OK;
+}
+
+int main(int argc, char **argv) {
+    nlsql_context *ctx = NULL; nlsql_schema_builder *builder = NULL; nlsql_schema *schema = NULL; nlsql_policy *policy = NULL; nlsql_compile_result *result = NULL;
+    nlsql_config cfg = {0}; nlsql_compile_request request = {0}; char *ir = NULL; const char *ir_path = NULL, *schema_path = NULL, *policy_path = NULL; nlsql_status st = NLSQL_OK; int i; const char *command;
+    if (argc < 2 || strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) { usage(); return argc < 2 ? 2 : 0; }
+    command = argv[1]; if (strcmp(command, "version") == 0) { puts(NLSQL_VERSION); return 0; }
+    if (strcmp(command, "grammar") == 0) { puts("(nlsql 1 (query (from IDENT [IDENT]) (select (field EXPR IDENT)) ...))"); return 0; }
+    if (strcmp(command, "compile") != 0 && strcmp(command, "validate-ir") != 0) { fprintf(stderr, "unknown command: %s\n", command); return 2; }
+    for (i = 2; i < argc; i++) { if (strcmp(argv[i], "--ir") == 0 && i + 1 < argc) ir_path = argv[++i]; else if (strcmp(argv[i], "--schema") == 0 && i + 1 < argc) schema_path = argv[++i]; else if (strcmp(argv[i], "--policy") == 0 && i + 1 < argc) policy_path = argv[++i]; else if (strcmp(argv[i], "--dialect") == 0 && i + 1 < argc) { request.dialect = parse_dialect(argv[++i]); if ((int)request.dialect < 0) return 2; } else { fprintf(stderr, "unknown argument: %s\n", argv[i]); return 2; } }
+    if (!ir_path || !(ir = read_file(ir_path))) { fputs("cannot read --ir file\n", stderr); return 2; }
+    if (request.dialect == (nlsql_dialect)0) request.dialect = NLSQL_DIALECT_POSTGRES;
+    st = nlsql_context_create(&cfg, &ctx); if (st == NLSQL_OK) st = load_schema(ctx, schema_path, &schema, &builder); if (st == NLSQL_OK) st = load_policy(ctx, policy_path, &policy);
+    request.ir = ir; request.schema = schema; request.policy = policy;
+    if (st == NLSQL_OK) st = nlsql_compile_ir(ctx, &request, &result);
+    if (st == NLSQL_OK) { if (strcmp(command, "validate-ir") == 0) puts("VALID"); else { puts(nlsql_result_sql(result).sql); puts("-- manifest --"); fputs(nlsql_result_manifest(result), stdout); } }
+    else fprintf(stderr, "%s: %s\n", nlsql_status_name(st), result ? nlsql_result_error(result) : "setup failure");
+    nlsql_compile_result_destroy(result); nlsql_policy_destroy(policy); nlsql_schema_destroy(schema); nlsql_schema_builder_destroy(builder); nlsql_context_destroy(ctx); free(ir); return st == NLSQL_OK ? 0 : 1;
+}

@@ -34,6 +34,15 @@ See spec/query-ir-v1.ebnf. A minimal input is:
 
 The compiler adds the configured default limit and any required tenant predicate. See examples and tests for a complete join query.
 
+## CLI and trusted formats
+
+The CLI supports `compile` and `validate-ir` with optional trusted `.nlschema` and `.nlpolicy` inputs:
+
+    nlsqlc validate-ir --ir query.nlir --schema schema.nlschema --policy policy.nlpolicy
+    nlsqlc compile --ir query.nlir --schema schema.nlschema --policy policy.nlpolicy --dialect postgres
+
+The core still does not read files; file parsing is CLI-only configuration handling. See `spec/native-formats.md`.
+
 ## License
 
 Apache License 2.0. See LICENSE.

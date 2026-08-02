@@ -11,9 +11,7 @@ Date: 2026-08-01
 - AddressSanitizer/UndefinedBehaviorSanitizer test binary: passed after final join-path hardening.
 - Meson: unavailable on this host (`meson` not installed), so Meson execution is not claimed.
 
-## Delivered
-
-The repository at `/home/scott/nlsqlc` contains a zero-runtime-dependency C11 vertical slice with strict Query IR parsing, bounded allocation, schema builder, schema-resolved identifiers, foreign-key-backed inner joins, read-only SQL emission for five parameter styles, policy allowlists, tenant predicate injection, manifest output, CLI, CMake/Make/Meson build descriptions, examples, threat model, specifications, and amalgamation.
+The repository now has a hardened 0.1.1 development slice: canonical IR output, typed parameter metadata, schema-resolved deny-column enforcement, foreign-key-backed join enforcement, and CLI loading of trusted `.nlschema`/`.nlpolicy` files with `validate-ir`.
 
 ## Not delivered
 

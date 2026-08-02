@@ -1,0 +1,7 @@
+nlpolicy 1
+allow_table public orders
+allow_table public customers
+tenant public orders tenant_id uuid
+tenant public customers tenant_id uuid
+runtime_tenant tenant_id uuid
+limit 5 500
