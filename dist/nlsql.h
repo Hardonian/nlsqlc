@@ -8,6 +8,16 @@
 extern "C" {
 #endif
 
+#if defined(_WIN32) && defined(NLSQL_BUILD_SHARED)
+#define NLSQL_API __declspec(dllexport)
+#elif defined(_WIN32)
+#define NLSQL_API __declspec(dllimport)
+#elif defined(__GNUC__) || defined(__clang__)
+#define NLSQL_API __attribute__((visibility("default")))
+#else
+#define NLSQL_API
+#endif
+
 #define NLSQL_VERSION "0.1.2"
 #define NLSQL_IR_VERSION 1u
 #define NLSQL_ABI_VERSION 1u
@@ -39,47 +49,47 @@ typedef nlsql_status (*nlsql_infer_fn)(void *, const char *, size_t, char *, siz
 
 typedef struct { nlsql_infer_fn infer; void *user_data; } nlsql_inference;
 
-nlsql_status nlsql_build_inference_prompt(const nlsql_question_request *, char *, size_t, size_t *);
-nlsql_status nlsql_compile_inferred(nlsql_context *, const nlsql_question_request *, const nlsql_inference *, nlsql_compile_result **);
+NLSQL_API nlsql_status nlsql_build_inference_prompt(const nlsql_question_request *, char *, size_t, size_t *);
+NLSQL_API nlsql_status nlsql_compile_inferred(nlsql_context *, const nlsql_question_request *, const nlsql_inference *, nlsql_compile_result **);
 
-nlsql_status nlsql_context_create(const nlsql_config *, nlsql_context **);
-void nlsql_context_destroy(nlsql_context *);
-const char *nlsql_status_name(nlsql_status);
-const char *nlsql_dialect_name(nlsql_dialect);
-unsigned nlsql_abi_version(void);
+NLSQL_API nlsql_status nlsql_context_create(const nlsql_config *, nlsql_context **);
+NLSQL_API void nlsql_context_destroy(nlsql_context *);
+NLSQL_API const char *nlsql_status_name(nlsql_status);
+NLSQL_API const char *nlsql_dialect_name(nlsql_dialect);
+NLSQL_API unsigned nlsql_abi_version(void);
 
-nlsql_status nlsql_schema_builder_create(nlsql_context *, nlsql_schema_builder **);
-nlsql_status nlsql_schema_builder_add_table(nlsql_schema_builder *, const char *, const char *, unsigned);
-nlsql_status nlsql_schema_builder_add_column(nlsql_schema_builder *, const char *, const char *, const char *, nlsql_type, unsigned);
-nlsql_status nlsql_schema_builder_add_foreign_key(nlsql_schema_builder *, const char *, const char *, const char *, const char *, const char *, const char *);
-nlsql_status nlsql_schema_builder_finalize(nlsql_schema_builder *, nlsql_schema **);
-void nlsql_schema_builder_destroy(nlsql_schema_builder *);
-void nlsql_schema_destroy(nlsql_schema *);
+NLSQL_API nlsql_status nlsql_schema_builder_create(nlsql_context *, nlsql_schema_builder **);
+NLSQL_API nlsql_status nlsql_schema_builder_add_table(nlsql_schema_builder *, const char *, const char *, unsigned);
+NLSQL_API nlsql_status nlsql_schema_builder_add_column(nlsql_schema_builder *, const char *, const char *, const char *, nlsql_type, unsigned);
+NLSQL_API nlsql_status nlsql_schema_builder_add_foreign_key(nlsql_schema_builder *, const char *, const char *, const char *, const char *, const char *, const char *);
+NLSQL_API nlsql_status nlsql_schema_builder_finalize(nlsql_schema_builder *, nlsql_schema **);
+NLSQL_API void nlsql_schema_builder_destroy(nlsql_schema_builder *);
+NLSQL_API void nlsql_schema_destroy(nlsql_schema *);
 
-nlsql_status nlsql_policy_create(nlsql_context *, nlsql_policy **);
-nlsql_status nlsql_policy_allow_table(nlsql_policy *, const char *, const char *);
-nlsql_status nlsql_policy_deny_column(nlsql_policy *, const char *, const char *, const char *);
-nlsql_status nlsql_policy_require_tenant(nlsql_policy *, const char *, const char *, const char *);
-nlsql_status nlsql_policy_set_limits(nlsql_policy *, size_t, size_t);
-nlsql_status nlsql_policy_set_runtime_tenant(nlsql_policy *, const char *, nlsql_type);
-void nlsql_policy_destroy(nlsql_policy *);
+NLSQL_API nlsql_status nlsql_policy_create(nlsql_context *, nlsql_policy **);
+NLSQL_API nlsql_status nlsql_policy_allow_table(nlsql_policy *, const char *, const char *);
+NLSQL_API nlsql_status nlsql_policy_deny_column(nlsql_policy *, const char *, const char *, const char *);
+NLSQL_API nlsql_status nlsql_policy_require_tenant(nlsql_policy *, const char *, const char *, const char *);
+NLSQL_API nlsql_status nlsql_policy_set_limits(nlsql_policy *, size_t, size_t);
+NLSQL_API nlsql_status nlsql_policy_set_runtime_tenant(nlsql_policy *, const char *, nlsql_type);
+NLSQL_API void nlsql_policy_destroy(nlsql_policy *);
 
-nlsql_status nlsql_compile_ir(nlsql_context *, const nlsql_compile_request *, nlsql_compile_result **);
-nlsql_status nlsql_compile_cte(nlsql_context *, const nlsql_cte_request *, nlsql_compile_result **);
-nlsql_status nlsql_compile_set(nlsql_context *, const nlsql_set_request *, nlsql_compile_result **);
-nlsql_status nlsql_compile_question(nlsql_context *, const nlsql_question_request *, nlsql_compile_result **);
-void nlsql_compile_result_destroy(nlsql_compile_result *);
-nlsql_sql_view nlsql_result_sql(const nlsql_compile_result *);
-const char *nlsql_result_canonical_ir(const nlsql_compile_result *);
-const char *nlsql_result_manifest(const nlsql_compile_result *);
-const char *nlsql_result_error(const nlsql_compile_result *);
-nlsql_status nlsql_result_status(const nlsql_compile_result *);
-size_t nlsql_result_param_count(const nlsql_compile_result *);
-nlsql_param_view nlsql_result_param(const nlsql_compile_result *, size_t);
-nlsql_risk nlsql_result_risk(const nlsql_compile_result *);
-unsigned nlsql_result_complexity(const nlsql_compile_result *);
-uint64_t nlsql_result_fingerprint(const nlsql_compile_result *);
-double nlsql_result_relevance_score(const nlsql_compile_result *);
+NLSQL_API nlsql_status nlsql_compile_ir(nlsql_context *, const nlsql_compile_request *, nlsql_compile_result **);
+NLSQL_API nlsql_status nlsql_compile_cte(nlsql_context *, const nlsql_cte_request *, nlsql_compile_result **);
+NLSQL_API nlsql_status nlsql_compile_set(nlsql_context *, const nlsql_set_request *, nlsql_compile_result **);
+NLSQL_API nlsql_status nlsql_compile_question(nlsql_context *, const nlsql_question_request *, nlsql_compile_result **);
+NLSQL_API void nlsql_compile_result_destroy(nlsql_compile_result *);
+NLSQL_API nlsql_sql_view nlsql_result_sql(const nlsql_compile_result *);
+NLSQL_API const char *nlsql_result_canonical_ir(const nlsql_compile_result *);
+NLSQL_API const char *nlsql_result_manifest(const nlsql_compile_result *);
+NLSQL_API const char *nlsql_result_error(const nlsql_compile_result *);
+NLSQL_API nlsql_status nlsql_result_status(const nlsql_compile_result *);
+NLSQL_API size_t nlsql_result_param_count(const nlsql_compile_result *);
+NLSQL_API nlsql_param_view nlsql_result_param(const nlsql_compile_result *, size_t);
+NLSQL_API nlsql_risk nlsql_result_risk(const nlsql_compile_result *);
+NLSQL_API unsigned nlsql_result_complexity(const nlsql_compile_result *);
+NLSQL_API uint64_t nlsql_result_fingerprint(const nlsql_compile_result *);
+NLSQL_API double nlsql_result_relevance_score(const nlsql_compile_result *);
 
 #ifdef __cplusplus
 }
