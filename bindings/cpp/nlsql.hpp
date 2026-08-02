@@ -39,10 +39,16 @@ public:
         return *this;
     }
     nlsql_sql_view sql() const noexcept { return nlsql_result_sql(result_); }
+    nlsql_status status() const noexcept { return nlsql_result_status(result_); }
+    const char *error() const noexcept { return nlsql_result_error(result_); }
     const char *canonical_ir() const noexcept { return nlsql_result_canonical_ir(result_); }
     const char *manifest() const noexcept { return nlsql_result_manifest(result_); }
     size_t parameter_count() const noexcept { return nlsql_result_param_count(result_); }
+    nlsql_param_view parameter(size_t index) const noexcept { return nlsql_result_param(result_, index); }
+    nlsql_risk risk() const noexcept { return nlsql_result_risk(result_); }
+    unsigned complexity() const noexcept { return nlsql_result_complexity(result_); }
     uint64_t fingerprint() const noexcept { return nlsql_result_fingerprint(result_); }
+    double relevance_score() const noexcept { return nlsql_result_relevance_score(result_); }
     nlsql_compile_result *get() const noexcept { return result_; }
 private:
     nlsql_compile_result *result_;
@@ -57,6 +63,18 @@ inline Result compile_ir(Context &context, const nlsql_compile_request &request)
 inline Result compile_set(Context &context, const nlsql_set_request &request) {
     nlsql_compile_result *result = nullptr;
     throw_status(nlsql_compile_set(context.get(), &request, &result));
+    return Result(result);
+}
+
+inline Result compile_cte(Context &context, const nlsql_cte_request &request) {
+    nlsql_compile_result *result = nullptr;
+    throw_status(nlsql_compile_cte(context.get(), &request, &result));
+    return Result(result);
+}
+
+inline Result compile_question(Context &context, const nlsql_question_request &request) {
+    nlsql_compile_result *result = nullptr;
+    throw_status(nlsql_compile_question(context.get(), &request, &result));
     return Result(result);
 }
 
