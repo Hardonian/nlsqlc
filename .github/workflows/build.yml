@@ -11,3 +11,5 @@ jobs:
       - run: cmake --build build --parallel
       - run: ctest --test-dir build --output-on-failure
       - run: make clean && make all && make test
+      - name: Run release readiness gate
+        run: tools/release.sh 0.1.1
