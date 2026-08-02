@@ -75,6 +75,18 @@ int main(void) {
         assert(strstr(nlsql_result_sql(window_result).sql, " OVER (PARTITION BY") != NULL);
         nlsql_compile_result_destroy(window_result);
     }
+    {
+        const char *left_ir = "(nlsql 1 (query (from orders t) (select (field (column t id) id))))";
+        const char *right_ir = "(nlsql 1 (query (from orders t) (select (field (column t id) id))))";
+        nlsql_set_request set_request = {left_ir, right_ir, schema, policy, NLSQL_DIALECT_POSTGRES, NLSQL_SET_UNION_ALL};
+        nlsql_compile_result *set_result = NULL;
+        assert(nlsql_compile_set(ctx, &set_request, &set_result) == NLSQL_OK);
+        assert(strstr(nlsql_result_sql(set_result).sql, " UNION ALL ") != NULL);
+        assert(strstr(nlsql_result_sql(set_result).sql, "$1") != NULL);
+        assert(strstr(nlsql_result_sql(set_result).sql, "$2") != NULL);
+        assert(nlsql_result_param_count(set_result) == 2u);
+        nlsql_compile_result_destroy(set_result);
+    }
     bad.question = "drop orders"; bad.schema = schema; bad.policy = policy; bad.dialect = NLSQL_DIALECT_POSTGRES;
     assert(nlsql_compile_question(ctx, &bad, &result) == NLSQL_E_UNSUPPORTED);
     assert(result == NULL);

@@ -31,6 +31,8 @@ typedef struct { const char *sql; size_t length; } nlsql_sql_view;
 typedef struct { size_t position; const char *name; nlsql_type type; nlsql_param_source source; int runtime_required; } nlsql_param_view;
 typedef struct { const char *question; const nlsql_schema *schema; const nlsql_policy *policy; nlsql_dialect dialect; } nlsql_question_request;
 typedef struct { const char *ir; const nlsql_schema *schema; const nlsql_policy *policy; nlsql_dialect dialect; const char *trace_id; } nlsql_compile_request;
+typedef enum { NLSQL_SET_UNION, NLSQL_SET_UNION_ALL, NLSQL_SET_INTERSECT, NLSQL_SET_EXCEPT } nlsql_set_operator;
+typedef struct { const char *left_ir; const char *right_ir; const nlsql_schema *schema; const nlsql_policy *policy; nlsql_dialect dialect; nlsql_set_operator operation; } nlsql_set_request;
 typedef nlsql_status (*nlsql_infer_fn)(void *, const char *, size_t, char *, size_t, size_t *);
 
 typedef struct { nlsql_infer_fn infer; void *user_data; } nlsql_inference;
@@ -60,6 +62,7 @@ nlsql_status nlsql_policy_set_runtime_tenant(nlsql_policy *, const char *, nlsql
 void nlsql_policy_destroy(nlsql_policy *);
 
 nlsql_status nlsql_compile_ir(nlsql_context *, const nlsql_compile_request *, nlsql_compile_result **);
+nlsql_status nlsql_compile_set(nlsql_context *, const nlsql_set_request *, nlsql_compile_result **);
 nlsql_status nlsql_compile_question(nlsql_context *, const nlsql_question_request *, nlsql_compile_result **);
 void nlsql_compile_result_destroy(nlsql_compile_result *);
 nlsql_sql_view nlsql_result_sql(const nlsql_compile_result *);

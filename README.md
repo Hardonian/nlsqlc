@@ -43,6 +43,8 @@ The CLI supports `compile` and `validate-ir` with optional trusted `.nlschema` a
 
 The core still does not read files; file parsing is CLI-only configuration handling. See `spec/native-formats.md`.
 
+The core also exposes `nlsql_compile_set` for policy-checked `UNION`, `UNION ALL`, `INTERSECT`, and `EXCEPT`. Each branch is independently compiled and the resulting parameter positions are rebased deterministically.
+
 ## License
 
 Apache License 2.0. See LICENSE.
