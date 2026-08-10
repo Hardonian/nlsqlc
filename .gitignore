@@ -8,3 +8,11 @@ release/
 nlsqlc
 nlsql-tests
 compile_commands.json
+__pycache__/
+.env
+node_modules/
+.pytest_cache/
+.idea/
+.vscode/
+*.pyc
+*.log
