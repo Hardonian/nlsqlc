@@ -435,6 +435,39 @@ function autoCompile() {
   debounceTimer = setTimeout(compileIR, 150);
 }
 
+let lastResult = null;
+
+function updateView() {
+  if (!lastResult) return;
+  const outBox = document.getElementById('output-box');
+  const mode = document.getElementById('view-mode').value;
+
+  if (lastResult.status === 'OK') {
+    outBox.className = 'output-box sql-output';
+    if (mode === 'sql') {
+      let paramHtml = '';
+      if (lastResult.params && lastResult.params.length > 0) {
+        paramHtml = `\n\n/* Bound Parameters (${lastResult.params.length}): */\n` +
+          lastResult.params.map(p => `-- $${p.position}: ${p.name} (source: ${p.source === 1 ? 'RUNTIME_TENANT_ISOLATION' : 'USER_INPUT'})`).join('\n');
+      }
+      outBox.textContent = lastResult.sql + paramHtml;
+    } else if (mode === 'plan') {
+      outBox.textContent = `┌── [Execution Plan & Policy Verification]\n` +
+        `│  ├── Status: OK (Dialect: ${document.getElementById('dialect-select').value})\n` +
+        `│  ├── Complexity: ${lastResult.complexity} | Risk: ${lastResult.risk}\n` +
+        `│  ├── Relevance Score: ${lastResult.relevance_score}\n` +
+        `│  ├── Fingerprint: ${lastResult.fingerprint}\n` +
+        `│  └── Bound Tenant Predicates: Injected Unconditionally\n└──`;
+    } else if (mode === 'manifest') {
+      outBox.textContent = lastResult.manifest || `version=2\ncomplexity=${lastResult.complexity}\nrisk=${lastResult.risk}\n`;
+    }
+  } else {
+    outBox.className = 'output-box';
+    outBox.style.color = '#fb7185';
+    outBox.textContent = `❌ COMPILATION REJECTED\n\nError: ${lastResult.error || 'Compilation failed'}\n\nSecurity Guarantee: Query failed closed at compiler layer without reaching the database engine.`;
+  }
+}
+
 async function compileIR() {
   const ir = document.getElementById('ir-editor').value.trim();
   const dialect = document.getElementById('dialect-select').value;
@@ -450,16 +483,10 @@ async function compileIR() {
     const t1 = performance.now();
     const elapsed = (t1 - t0).toFixed(2);
     const data = await res.json();
+    lastResult = data;
 
     if (res.ok && data.status === 'OK') {
-      outBox.className = 'output-box sql-output';
-      let paramHtml = '';
-      if (data.params && data.params.length > 0) {
-        paramHtml = `\n\n/* Bound Parameters (${data.params.length}): */\n` +
-          data.params.map(p => `-- $${p.position}: ${p.name} (source: ${p.source === 1 ? 'RUNTIME_TENANT_ISOLATION' : 'USER_INPUT'})`).join('\n');
-      }
-      outBox.textContent = data.sql + paramHtml;
-
+      updateView();
       document.getElementById('stat-status').textContent = 'OK';
       document.getElementById('stat-status').className = 'telemetry-val val-low';
       document.getElementById('stat-latency').textContent = `${data.duration_ms || elapsed} ms`;
@@ -467,10 +494,7 @@ async function compileIR() {
       document.getElementById('stat-risk').textContent = `${data.risk} (Isolated)`;
       document.getElementById('stat-risk').className = 'telemetry-val val-low';
     } else {
-      outBox.className = 'output-box';
-      outBox.style.color = '#fb7185';
-      outBox.textContent = `❌ COMPILATION REJECTED\n\nError: ${data.error || data.message || 'Unknown compilation error'}\n\nSecurity Guarantee: Query failed closed at compiler layer without reaching the database engine.`;
-
+      updateView();
       document.getElementById('stat-status').textContent = 'FAILED';
       document.getElementById('stat-status').className = 'telemetry-val val-denied';
       document.getElementById('stat-latency').textContent = `${elapsed} ms`;
