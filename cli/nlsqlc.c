@@ -59,8 +59,9 @@ static int line_word_count(const char *line, size_t minimum, size_t maximum) {
 
 static void usage(void) {
     puts("nlsqlc " NLSQL_VERSION "\n"
-         "usage: nlsqlc compile --ir FILE [--schema FILE] [--policy FILE] [--dialect DIALECT]\n"
+         "usage: nlsqlc compile --ir FILE [--schema FILE] [--policy FILE] [--dialect DIALECT] [--json]\n"
          "       nlsqlc validate-ir --ir FILE [--schema FILE] [--policy FILE]\n"
+         "       nlsqlc fmt --ir FILE\n"
          "       nlsqlc version\n       nlsqlc grammar\n"
          "formats: .nlschema and .nlpolicy are trusted line-oriented config files");
 }
@@ -126,18 +127,40 @@ static nlsql_status load_policy(nlsql_context *ctx, const char *path, nlsql_poli
 
 int main(int argc, char **argv) {
     nlsql_context *ctx = NULL; nlsql_schema_builder *builder = NULL; nlsql_schema *schema = NULL; nlsql_policy *policy = NULL; nlsql_compile_result *result = NULL;
-    nlsql_config cfg = {0}; nlsql_compile_request request = {0}; char *ir = NULL; const char *ir_path = NULL, *schema_path = NULL, *policy_path = NULL; nlsql_status st = NLSQL_OK; int i; const char *command;
+    nlsql_config cfg = {0}; nlsql_compile_request request = {0}; char *ir = NULL; const char *ir_path = NULL, *schema_path = NULL, *policy_path = NULL; nlsql_status st = NLSQL_OK; int i, json_output = 0; const char *command;
     if (argc < 2 || strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) { usage(); return argc < 2 ? 2 : 0; }
     command = argv[1]; if (strcmp(command, "version") == 0) { puts(NLSQL_VERSION); return 0; }
-    if (strcmp(command, "grammar") == 0) { puts("(nlsql 1 (query (from IDENT [IDENT]) (select (field EXPR IDENT)) ...))"); return 0; }
-    if (strcmp(command, "compile") != 0 && strcmp(command, "validate-ir") != 0) { fprintf(stderr, "unknown command: %s\n", command); return 2; }
-    for (i = 2; i < argc; i++) { if (strcmp(argv[i], "--ir") == 0 && i + 1 < argc) ir_path = argv[++i]; else if (strcmp(argv[i], "--schema") == 0 && i + 1 < argc) schema_path = argv[++i]; else if (strcmp(argv[i], "--policy") == 0 && i + 1 < argc) policy_path = argv[++i]; else if (strcmp(argv[i], "--dialect") == 0 && i + 1 < argc) { request.dialect = parse_dialect(argv[++i]); if ((int)request.dialect < 0) return 2; } else { fprintf(stderr, "unknown argument: %s\n", argv[i]); return 2; } }
+    if (strcmp(command, "grammar") == 0) { puts("(nlsql 2 (query (from IDENT [IDENT]) [join ...] (select (field EXPR IDENT) ...) ...))"); return 0; }
+    if (strcmp(command, "compile") != 0 && strcmp(command, "validate-ir") != 0 && strcmp(command, "fmt") != 0) { fprintf(stderr, "unknown command: %s\n", command); return 2; }
+    for (i = 2; i < argc; i++) {
+        if (strcmp(argv[i], "--ir") == 0 && i + 1 < argc) ir_path = argv[++i];
+        else if (strcmp(argv[i], "--schema") == 0 && i + 1 < argc) schema_path = argv[++i];
+        else if (strcmp(argv[i], "--policy") == 0 && i + 1 < argc) policy_path = argv[++i];
+        else if (strcmp(argv[i], "--json") == 0) json_output = 1;
+        else if (strcmp(argv[i], "--dialect") == 0 && i + 1 < argc) { request.dialect = parse_dialect(argv[++i]); if ((int)request.dialect < 0) return 2; }
+        else { fprintf(stderr, "unknown argument: %s\n", argv[i]); return 2; }
+    }
     if (!ir_path || !(ir = read_file(ir_path))) { fputs("cannot read --ir file\n", stderr); return 2; }
     if (request.dialect == (nlsql_dialect)0) request.dialect = NLSQL_DIALECT_POSTGRES;
     st = nlsql_context_create(&cfg, &ctx); if (st == NLSQL_OK) st = load_schema(ctx, schema_path, &schema, &builder); if (st == NLSQL_OK) st = load_policy(ctx, policy_path, &policy);
     request.ir = ir; request.schema = schema; request.policy = policy;
     if (st == NLSQL_OK) st = nlsql_compile_ir(ctx, &request, &result);
-    if (st == NLSQL_OK) { if (strcmp(command, "validate-ir") == 0) puts("VALID"); else { puts(nlsql_result_sql(result).sql); puts("-- manifest --"); fputs(nlsql_result_manifest(result), stdout); } }
-    else fprintf(stderr, "%s: %s\n", nlsql_status_name(st), result ? nlsql_result_error(result) : "setup failure");
+    if (st == NLSQL_OK) {
+        if (strcmp(command, "validate-ir") == 0) {
+            puts("VALID");
+        } else if (strcmp(command, "fmt") == 0) {
+            puts(nlsql_result_canonical_ir(result));
+        } else if (json_output) {
+            printf("{\"status\":\"OK\",\"dialect\":\"%s\",\"sql\":\"%s\",\"complexity\":%u,\"risk\":\"%s\"}\n",
+                   nlsql_dialect_name(request.dialect), nlsql_result_sql(result).sql, nlsql_result_complexity(result),
+                   nlsql_result_risk(result) == NLSQL_RISK_LOW ? "LOW" : "MODERATE");
+        } else {
+            puts(nlsql_result_sql(result).sql);
+            puts("-- manifest --");
+            fputs(nlsql_result_manifest(result), stdout);
+        }
+    } else {
+        fprintf(stderr, "%s: %s\n", nlsql_status_name(st), result ? nlsql_result_error(result) : "setup failure");
+    }
     nlsql_compile_result_destroy(result); nlsql_policy_destroy(policy); nlsql_schema_destroy(schema); nlsql_schema_builder_destroy(builder); nlsql_context_destroy(ctx); free(ir); return st == NLSQL_OK ? 0 : 1;
 }

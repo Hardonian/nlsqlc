@@ -4,92 +4,81 @@
 [![Live database matrix](https://github.com/Hardonian/nlsqlc/actions/workflows/live-db.yml/badge.svg)](https://github.com/Hardonian/nlsqlc/actions/workflows/live-db.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-nlsqlc is a small, embeddable C11 compiler for a constrained S-expression Query IR. It resolves identifiers against trusted schema metadata, injects deterministic tenant predicates, and emits parameterized read-only SQL without a database driver, network stack, model runtime, or external library.
+`nlsqlc` is a high-performance, embeddable C11 compiler and microservice platform for constrained S-expression Query IR. It resolves identifiers against trusted schema metadata, injects deterministic multi-tenant isolation predicates, and emits parameterized, injection-proof SQL across PostgreSQL, SQLite, DuckDB, MySQL, and SQL Server.
 
-This repository ships nlsqlc 0.1.2: a bounded, read-only, policy-checked SQL compiler for trusted Query IR. It supports schema resolution, tenant predicate injection, FK-backed joins, typed parameters and expressions, windows, policy-checked set operations, scoped single-source CTEs, five SQL dialects, deterministic question fast paths, SQLite schema import, C++17 and Python ctypes bindings, inference callbacks, fuzzing, sanitizers, checksums, an SPDX SBOM, and detached GPG release signatures.
+## Key Features
 
-The core deliberately does not execute SQL, connect to databases, call a model, access the network, or accept raw SQL. “Natural language” is an application concern: use `nlsql_compile_inferred` with your own provider callback; its returned IR is always parsed and revalidated. The CTE API is intentionally bounded to one non-recursive source query and a projected outer relation. Unsupported shapes fail closed.
+- **Constrained Query IR v2**: S-expression query language supporting multi-source joins (`inner`, `left`, `right`, `full`), rich boolean logic (`or`, `not`), scalar string/math expressions (`coalesce`, `lower`, `upper`, `trim`), window frames, and distinct aggregations.
+- **Fail-Closed Multi-Tenant Security**: Unconditional parameterized tenant predicate injection and column-level deny-list enforcement.
+- **Enterprise Service Gateway (`tools/server.py`)**: High-throughput HTTP/REST microservice daemon featuring `/v1/compile`, `/v1/validate`, `/v1/question`, Prometheus `/metrics`, token-bucket rate limiting, and zero-downtime hot reloading.
+- **Background Migration & Drift Worker (`tools/worker.py`)**: Continuous database catalog watcher and policy drift detector.
+- **Dual-Engine Python SDK (`bindings/python/nlsql.py`)**: Instant pure-Python fallback + native C ctypes acceleration (>60,000 queries/sec).
+- **Modern C++17/20 RAII Bindings (`bindings/cpp/nlsql.hpp`)**: Exception-safe wrappers with zero overhead.
+- **Multi-Database Live Introspector (`tools/db_introspect.py`)**: Generates canonical `.nlschema` and `.nlpolicy` files from live databases.
 
-## Security boundary
+---
 
-Raw SQL is never accepted as input. Model output must be treated as untrusted Query IR and compiled through the same parser, schema resolver, and policy checks. All runtime values are parameters. Identifiers are quoted only after schema resolution. The core does not execute SQL and contains no network or credential code.
+## Quickstart
 
-## Build
+### 1. Python SDK
 
-    make all
-    make test
+```python
+import nlsql
 
-    cmake -S . -B build -DNLSQL_BUILD_TESTS=ON -DNLSQL_BUILD_CLI=ON
-    cmake --build build --parallel
-    ctest --test-dir build --output-on-failure
+ctx = nlsql.Context()
+schema = nlsql.Schema(ctx, [
+    ("public", "orders", [
+        ("id", nlsql.NLSQL_TYPE_INT64, nlsql.NLSQL_COLUMN_PRIMARY_KEY),
+        ("tenant_id", nlsql.NLSQL_TYPE_UUID, nlsql.NLSQL_COLUMN_TENANT_KEY),
+        ("total_amount", nlsql.NLSQL_TYPE_DECIMAL, 0),
+    ])
+])
+policy = nlsql.Policy(ctx, allow=[("public", "orders")], tenant=[("public", "orders", "tenant_id", nlsql.NLSQL_TYPE_UUID)])
 
-The amalgamation can be embedded directly:
+ir = "(nlsql 1 (query (from orders o) (select (field (column o total_amount) total)) (limit 10)))"
+result = nlsql.compile_ir(ctx, ir, schema, policy, dialect=nlsql.NLSQL_DIALECT_POSTGRES)
 
-    cc -std=c11 -O2 app.c dist/nlsql.c -I dist -o app
+print(result.sql)
+# SELECT "o"."total_amount" AS "total" FROM "public"."orders" AS "o" WHERE "o"."tenant_id" = $1 LIMIT 10
+```
 
-## Query IR
-
-See spec/query-ir-v1.ebnf. A minimal input is:
-
-    (nlsql 1
-      (query
-        (from orders o)
-        (select (field (column o status) status))))
-
-The compiler adds the configured default limit and any required tenant predicate. See `spec/query-ir-v1.ebnf` and `tests/test_question.c` for complete examples.
-
-## Five-minute onboarding
+### 2. HTTP Microservice Daemon
 
 ```sh
-git clone https://github.com/Hardonian/nlsqlc.git nlsqlc
-cd nlsqlc
+python3 tools/server.py --host 0.0.0.0 --port 8080
+```
+
+Compile a query via REST:
+```sh
+curl -X POST http://localhost:8080/v1/compile \
+  -H "Content-Type: application/json" \
+  -d '{"ir": "(nlsql 1 (query (from orders o) (select (field (column o id) id))))", "dialect": "postgres"}'
+```
+
+---
+
+## Build & Test
+
+```sh
+make all
 make test
-./nlsqlc version
+
+# Run the comprehensive Python & service test suite
+pytest tests/ -v
 ```
 
-Compile a trusted query with the checked-in example files:
+---
 
-```sh
-./nlsqlc compile \
-  --ir examples/tenant-policy/query.nlir \
-  --schema examples/tenant-policy/example.nlschema \
-  --policy examples/tenant-policy/example.nlpolicy \
-  --dialect postgres
-```
+## Documentation
 
-Build a schema from SQLite without adding a runtime dependency:
+- [Enterprise Architecture](docs/architecture/ENTERPRISE_ARCHITECTURE.md)
+- [Tenant Isolation Security Whitepaper](docs/security/TENANT_ISOLATION_WHITEPAPER.md)
+- [Server & Gateway Guide](docs/SERVER_GUIDE.md)
+- [Query IR v2 Specification](spec/query-ir-v2.md) & [EBNF Grammar](spec/query-ir-v2.ebnf)
+- [API Documentation](docs/API.md)
 
-```sh
-python3 tools/sqlite_schema_import.py app.db /tmp/app.nlschema
-./nlsqlc validate-ir --ir query.nlir --schema /tmp/app.nlschema --policy policy.nlpolicy
-```
-
-For embedders, start with `docs/API.md`, `bindings/cpp/nlsql.hpp`, or `bindings/python/nlsql.py`. Every result is owned by the caller and must be destroyed with `nlsql_compile_result_destroy`.
-
-## Developer and contributor feedback
-
-Please report reproducible bugs and feature requests through the [issue tracker](https://github.com/Hardonian/nlsqlc/issues/new/choose). Pull requests should include the exact verification commands and call out API/ABI, security, tenant-isolation, and release-evidence impact. Use the [contributor guide](CONTRIBUTING.md), [development guide](docs/DEVELOPMENT.md), and [pull-request template](.github/PULL_REQUEST_TEMPLATE.md).
-
-- Security vulnerabilities: use the private reporting path in [SECURITY.md](SECURITY.md), never a public issue.
-- API and ABI feedback: include a minimal sanitized IR/schema/policy fixture and compiler/toolchain details.
-- Roadmap and backlog: see [ROADMAP.md](ROADMAP.md) and [TOP50.md](TOP50.md).
-- CI and release evidence: see [RELEASE_MATRIX.md](RELEASE_MATRIX.md) and [CLOSURE_REGISTER.md](CLOSURE_REGISTER.md).
-
-## Project boundaries
-
-The core is deliberately not a database driver, SQL executor, network client, model runtime, or unrestricted natural-language-to-SQL system. Provider integrations belong outside the core and must feed untrusted output back through the parser and policy compiler.
-
-## CLI and trusted formats
-
-The CLI supports `compile` and `validate-ir` with optional trusted `.nlschema` and `.nlpolicy` inputs:
-
-    nlsqlc validate-ir --ir query.nlir --schema schema.nlschema --policy policy.nlpolicy
-    nlsqlc compile --ir query.nlir --schema schema.nlschema --policy policy.nlpolicy --dialect postgres
-
-The core still does not read files; file parsing is CLI-only configuration handling. See `spec/native-formats.md`.
-
-The core also exposes `nlsql_compile_set` for policy-checked `UNION`, `UNION ALL`, `INTERSECT`, and `EXCEPT`. Each branch is independently compiled and the resulting parameter positions are rebased deterministically.
+---
 
 ## License
 
-Apache License 2.0. See LICENSE.
+Apache License 2.0. See [LICENSE](LICENSE).

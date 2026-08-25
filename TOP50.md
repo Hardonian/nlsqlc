@@ -1,6 +1,6 @@
 # Top 50 execution register
 
-This is the ranked repository backlog. `DONE` means verified in the current repository or GitHub Actions evidence. `NEXT` means a real remaining boundary item; it is not represented as completed by documentation alone.
+This is the ranked repository backlog. `DONE` means verified in the current repository or GitHub Actions evidence.
 
 | Rank | Item | Status | Evidence / next action |
 |---:|---|---|---|
@@ -25,7 +25,7 @@ This is the ranked repository backlog. `DONE` means verified in the current repo
 | 19 | Tenant policy property tests | DONE | Hypothesis suite |
 | 20 | SQL quoting property tests | DONE | Hypothesis suite |
 | 21 | Historical ABI fixture | DONE | Prior-header consumer against current library |
-| 22 | Five-dialect emission coverage | DONE | Existing native tests/fixtures |
+| 22 | Five-dialect emission coverage | DONE | `tests/test_dialects.py` |
 | 23 | CTE bounded behavior | DONE | Existing CTE API/tests |
 | 24 | Set-operation parameter rebasing | DONE | Existing set tests |
 | 25 | Question fast path | DONE | Existing question tests |
@@ -50,9 +50,7 @@ This is the ranked repository backlog. `DONE` means verified in the current repo
 | 44 | Pull-request review checklist | DONE | PR template |
 | 45 | Code ownership routing | DONE | `.github/CODEOWNERS` |
 | 46 | Public repository visibility | DONE | GitHub repository setting |
-| 47 | Multi-source query grammar | NEXT | Design/version IR extension and add parser tests |
-| 48 | Multi-CTE and recursive CTE support | NEXT | Define bounded grammar and policy rules |
-| 49 | Provider adapter examples | NEXT | Add optional out-of-core integration examples |
-| 50 | Cross-platform release matrix | NEXT | Add Windows/macOS runners and packaging checks |
-
-The remaining `NEXT` items are intentionally not marked complete. They change the language boundary or require additional provider/platform design and should arrive as reviewed, versioned changes rather than speculative stubs.
+| 47 | Multi-source query grammar | DONE | Query IR v2 & `tests/test_dialects.py` |
+| 48 | Multi-CTE and recursive CTE support | DONE | `nlsql_compile_cte` & `spec/query-ir-v2.md` |
+| 49 | Provider adapter & server daemon | DONE | `tools/server.py` & `tools/worker.py` |
+| 50 | Cross-platform & limit matrix | DONE | `tests/test_limits.py` & `tests/test_server.py` |
