@@ -345,13 +345,16 @@ def _py_emit_expr(expr: Any, sources: Dict[str, Tuple[str, str]], schema: _PySch
         return _py_quote_ident(expr[1], dialect)
     if op in ("sum", "avg", "count", "min", "max") and len(expr) == 2:
         sub = _py_emit_expr(expr[1], sources, schema, params, dialect)
-        return f"{op}({sub})"
+        return f"{op.upper()}({sub})"
     if op == "count-distinct" and len(expr) == 2:
         sub = _py_emit_expr(expr[1], sources, schema, params, dialect)
         return f"COUNT(DISTINCT {sub})"
     if op == "sum-distinct" and len(expr) == 2:
         sub = _py_emit_expr(expr[1], sources, schema, params, dialect)
         return f"SUM(DISTINCT {sub})"
+    if op == "distinct" and len(expr) == 2:
+        sub = _py_emit_expr(expr[1], sources, schema, params, dialect)
+        return f"DISTINCT {sub}"
     if op in ("eq", "gte", "gt", "lte", "lt", "neq", "mul", "add", "sub", "div") and len(expr) == 3:
         l = _py_emit_expr(expr[1], sources, schema, params, dialect)
         r = _py_emit_expr(expr[2], sources, schema, params, dialect)
@@ -364,6 +367,25 @@ def _py_emit_expr(expr: Any, sources: Dict[str, Tuple[str, str]], schema: _PySch
     if op == "not" and len(expr) == 2:
         sub = _py_emit_expr(expr[1], sources, schema, params, dialect)
         return f"(NOT {sub})"
+    if op == "in" and len(expr) >= 3:
+        target = _py_emit_expr(expr[1], sources, schema, params, dialect)
+        val_parts = [_py_emit_expr(x, sources, schema, params, dialect) for x in expr[2:]]
+        return f"({target} IN ({', '.join(val_parts)}))"
+    if op == "between" and len(expr) == 4:
+        target = _py_emit_expr(expr[1], sources, schema, params, dialect)
+        low = _py_emit_expr(expr[2], sources, schema, params, dialect)
+        high = _py_emit_expr(expr[3], sources, schema, params, dialect)
+        return f"({target} BETWEEN {low} AND {high})"
+    if op == "like" and len(expr) == 3:
+        target = _py_emit_expr(expr[1], sources, schema, params, dialect)
+        pattern = _py_emit_expr(expr[2], sources, schema, params, dialect)
+        return f"({target} LIKE {pattern})"
+    if op == "ilike" and len(expr) == 3:
+        target = _py_emit_expr(expr[1], sources, schema, params, dialect)
+        pattern = _py_emit_expr(expr[2], sources, schema, params, dialect)
+        if dialect in (NLSQL_DIALECT_POSTGRES, NLSQL_DIALECT_DUCKDB):
+            return f"({target} ILIKE {pattern})"
+        return f"(LOWER({target}) LIKE LOWER({pattern}))"
     if op == "is-null" and len(expr) == 2:
         sub = _py_emit_expr(expr[1], sources, schema, params, dialect)
         return f"({sub} IS NULL)"
@@ -376,15 +398,106 @@ def _py_emit_expr(expr: Any, sources: Dict[str, Tuple[str, str]], schema: _PySch
     if op == "coalesce" and len(expr) >= 2:
         parts = [_py_emit_expr(x, sources, schema, params, dialect) for x in expr[1:]]
         return f"COALESCE({', '.join(parts)})"
+    if op == "concat" and len(expr) >= 2:
+        parts = [_py_emit_expr(x, sources, schema, params, dialect) for x in expr[1:]]
+        if dialect in (NLSQL_DIALECT_SQLITE, NLSQL_DIALECT_POSTGRES, NLSQL_DIALECT_DUCKDB):
+            return f"({' || '.join(parts)})"
+        return f"CONCAT({', '.join(parts)})"
+    if op == "now":
+        return "CURRENT_TIMESTAMP"
+    if op == "date-trunc" and len(expr) == 3:
+        part = str(expr[1]).replace("'", "").replace('"', "")
+        sub = _py_emit_expr(expr[2], sources, schema, params, dialect)
+        if dialect == NLSQL_DIALECT_SQLITE:
+            return f"strftime('%Y-%m-01', {sub})"
+        return f"DATE_TRUNC('{part}', {sub})"
+    if op == "extract" and len(expr) == 3:
+        part = str(expr[1]).replace("'", "").replace('"', "")
+        sub = _py_emit_expr(expr[2], sources, schema, params, dialect)
+        return f"EXTRACT({part.upper()} FROM {sub})"
+    if op == "case" and len(expr) >= 2:
+        case_parts = ["CASE"]
+        for branch in expr[1:]:
+            if isinstance(branch, list) and branch and branch[0] == "when" and len(branch) == 3:
+                w_cond = _py_emit_expr(branch[1], sources, schema, params, dialect)
+                w_val = _py_emit_expr(branch[2], sources, schema, params, dialect)
+                case_parts.append(f"WHEN {w_cond} THEN {w_val}")
+            elif isinstance(branch, list) and branch and branch[0] == "else" and len(branch) == 2:
+                e_val = _py_emit_expr(branch[1], sources, schema, params, dialect)
+                case_parts.append(f"ELSE {e_val}")
+        case_parts.append("END")
+        return " ".join(case_parts)
     if op == "window" and len(expr) >= 4:
         sub = _py_emit_expr(expr[1], sources, schema, params, dialect)
         p_clause = expr[2]
         o_clause = expr[3]
         parts_p = [_py_emit_expr(x, sources, schema, params, dialect) for x in p_clause[1:]]
         order_target = _py_emit_expr(o_clause[1], sources, schema, params, dialect)
-        direction = "DESC" if o_clause[2].lower() == "desc" else "ASC"
+        direction = "DESC" if str(o_clause[2]).lower() == "desc" else "ASC"
         return f"{sub} OVER (PARTITION BY {', '.join(parts_p)} ORDER BY {order_target} {direction})"
     raise ValueError(f"unsupported operator: {op}")
+
+
+def _py_optimize_ast(node: Any) -> Any:
+    """Recursively folds constants, reduces boolean logic, and prunes dead predicates."""
+    if not isinstance(node, list):
+        return node
+    if not node:
+        return node
+
+    # Recursively optimize children first (bottom-up pass)
+    optimized_children = [_py_optimize_ast(child) for child in node]
+    op = optimized_children[0]
+
+    # Constant Folding: Arithmetic
+    if op in ("add", "sub", "mul", "div") and len(optimized_children) == 3:
+        l, r = optimized_children[1], optimized_children[2]
+        if isinstance(l, (int, float, str)) and isinstance(r, (int, float, str)):
+            try:
+                nl = float(l) if "." in str(l) else int(l)
+                nr = float(r) if "." in str(r) else int(r)
+                if op == "add": return nl + nr
+                if op == "sub": return nl - nr
+                if op == "mul": return nl * nr
+                if op == "div" and nr != 0: return nl / nr if "." in str(nl) or "." in str(nr) else nl // nr
+            except (ValueError, TypeError, ZeroDivisionError):
+                pass
+
+    # Constant Folding: Comparison
+    if op == "eq" and len(optimized_children) == 3:
+        l, r = optimized_children[1], optimized_children[2]
+        if isinstance(l, (int, float, str)) and isinstance(r, (int, float, str)) and not str(l).startswith("(") and not str(r).startswith("("):
+            if l == r: return "true"
+
+    # Boolean Reduction: NOT
+    if op == "not" and len(optimized_children) == 2:
+        sub = optimized_children[1]
+        if sub in ("true", True): return "false"
+        if sub in ("false", False): return "true"
+        if isinstance(sub, list) and len(sub) == 2 and sub[0] == "not":
+            return sub[1]  # (not (not X)) -> X
+
+    # Boolean Reduction: AND
+    if op == "and" and len(optimized_children) >= 2:
+        filtered = []
+        for x in optimized_children[1:]:
+            if x in ("false", False): return "false"
+            if x not in ("true", True): filtered.append(x)
+        if not filtered: return "true"
+        if len(filtered) == 1: return filtered[0]
+        return ["and"] + filtered
+
+    # Boolean Reduction: OR
+    if op == "or" and len(optimized_children) >= 2:
+        filtered = []
+        for x in optimized_children[1:]:
+            if x in ("true", True): return "true"
+            if x not in ("false", False): filtered.append(x)
+        if not filtered: return "false"
+        if len(filtered) == 1: return filtered[0]
+        return ["or"] + filtered
+
+    return optimized_children
 
 def _py_canonical_ir(node: Any) -> str:
     if isinstance(node, list):
@@ -393,7 +506,8 @@ def _py_canonical_ir(node: Any) -> str:
 
 def _py_compile_ir_engine(ir: str, schema: _PySchema, policy: _PyPolicy, dialect: int = NLSQL_DIALECT_POSTGRES) -> PyCompileResult:
     try:
-        tree = _py_parse_sexpr(ir)
+        raw_tree = _py_parse_sexpr(ir)
+        tree = _py_optimize_ast(raw_tree)
         if not isinstance(tree, list) or len(tree) < 3 or tree[0] != "nlsql" or tree[1] not in ("1", "2") or not isinstance(tree[2], list) or tree[2][0] != "query":
             return PyCompileResult(NLSQL_E_PARSE, error="PARSE: invalid root structure")
 
@@ -891,6 +1005,115 @@ def benchmark(ir_sample: Optional[str] = None, iterations: int = 1000) -> Dict[s
                 "queries_per_second": round(qps, 2),
                 "latency_us": round((elapsed / iterations) * 1e6, 2),
             }
+
+
+# ==============================================================================
+# AST Explain Visualizer & Semantic Diff Utility
+# ==============================================================================
+
+def explain(context: Context, ir: str, schema: Schema, policy: Policy, dialect: int = NLSQL_DIALECT_POSTGRES) -> Dict[str, Any]:
+    """Generates an ASCII execution and policy plan for a given Query IR."""
+    res = compile_ir(context, ir, schema, policy, dialect=dialect)
+    tree = _py_optimize_ast(_py_parse_sexpr(ir)) if res.status == NLSQL_OK else None
+
+    ascii_lines = ["┌── [Query Execution Plan]"]
+    if res.status == NLSQL_OK:
+        ascii_lines.append(f"│  ├── Status: OK (Dialect: {NLSQL_DIALECT_NAMES.get(dialect, 'postgres')})")
+        ascii_lines.append(f"│  ├── Complexity: {res.complexity} (Risk: {'LOW' if res.risk == NLSQL_RISK_LOW else 'MODERATE'})")
+        ascii_lines.append(f"│  ├── Invariant Tenant Predicates: Injected")
+        if res.params:
+            ascii_lines.append("│  ├── Parameter Bindings:")
+            for p in res.params:
+                src = "TENANT_POLICY" if p["source"] == NLSQL_PARAM_POLICY else "USER_INPUT"
+                ascii_lines.append(f"│  │   • ${p['position']}: {p['name']} ({NLSQL_TYPE_NAMES.get(p['type'], 'text')}) [{src}]")
+        ascii_lines.append("│  └── Generated SQL:")
+        ascii_lines.append(f"│      {res.sql}")
+    else:
+        ascii_lines.append(f"│  ├── Status: REJECTED ({NLSQL_STATUS_NAMES.get(res.status, 'ERROR')})")
+        ascii_lines.append(f"│  └── Error: {res.error}")
+    ascii_lines.append("└──")
+
+    plan_str = "\n".join(ascii_lines)
+    out = {
+        "status": "OK" if res.status == NLSQL_OK else "ERROR",
+        "plan_ascii": plan_str,
+        "complexity": res.complexity,
+        "risk": "LOW" if res.risk == NLSQL_RISK_LOW else "MODERATE",
+        "sql": res.sql,
+        "params": res.params,
+        "error": res.error,
+    }
+    res.close()
+    return out
+
+
+def diff(ir1: str, ir2: str) -> Dict[str, Any]:
+    """Computes structural and AST differences between two Query IR trees."""
+    t1 = _py_optimize_ast(_py_parse_sexpr(ir1))
+    t2 = _py_optimize_ast(_py_parse_sexpr(ir2))
+    c1 = _py_canonical_ir(t1)
+    c2 = _py_canonical_ir(t2)
+    is_identical = (c1 == c2)
+    return {
+        "identical": is_identical,
+        "ir1_canonical": c1,
+        "ir2_canonical": c2,
+    }
+
+
+# ==============================================================================
+# Async/Await Client & ASGI Middleware
+# ==============================================================================
+
+class AsyncNLSQLClient:
+    """Non-blocking asynchronous client for high-concurrency applications."""
+    def __init__(self, schema_specs: Optional[List[Tuple[str, str, List[Any]]]] = None, allow_tables: Optional[List[Tuple[str, str]]] = None, tenant_rules: Optional[List[Tuple[Any, ...]]] = None):
+        self.context = Context()
+        self.schema = Schema(self.context, schema_specs or [
+            ("public", "orders", [("id", NLSQL_TYPE_INT64, NLSQL_COLUMN_PRIMARY_KEY), ("tenant_id", NLSQL_TYPE_UUID, NLSQL_COLUMN_TENANT_KEY), ("total", NLSQL_TYPE_DECIMAL, 0)])
+        ])
+        self.policy = Policy(
+            self.context,
+            allow=allow_tables or [("public", "orders")],
+            tenant=tenant_rules or [("public", "orders", "tenant_id", NLSQL_TYPE_UUID)],
+            runtime_tenant=("tenant_id", NLSQL_TYPE_UUID),
+        )
+
+    async def compile(self, ir: str, dialect: int = NLSQL_DIALECT_POSTGRES) -> CompileResult:
+        import asyncio
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, compile_ir, self.context, ir, self.schema, self.policy, dialect)
+
+    async def compile_batch(self, ir_list: List[str], dialect: int = NLSQL_DIALECT_POSTGRES) -> List[CompileResult]:
+        import asyncio
+        tasks = [self.compile(ir, dialect) for ir in ir_list]
+        return await asyncio.gather(*tasks)
+
+    def close(self):
+        self.policy.close()
+        self.schema.close()
+        self.context.close()
+
+    async def __aenter__(self): return self
+    async def __aexit__(self, *_): self.close()
+
+
+class TenantContextMiddleware:
+    """ASGI / Starlette / FastAPI middleware extracting tenant context from HTTP headers."""
+    def __init__(self, app: Any, header_name: str = "X-Tenant-ID", tenant_type: int = NLSQL_TYPE_UUID):
+        self.app = app
+        self.header_name = header_name.lower().encode("latin1")
+        self.tenant_type = tenant_type
+
+    async def __call__(self, scope: Dict[str, Any], receive: Any, send: Any):
+        if scope["type"] == "http":
+            tenant_id = None
+            for key, val in scope.get("headers", []):
+                if key.lower() == self.header_name:
+                    tenant_id = val.decode("latin1")
+                    break
+            scope.setdefault("state", {})["tenant_id"] = tenant_id or "default-tenant"
+        await self.app(scope, receive, send)
 
 
 def main():

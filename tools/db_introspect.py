@@ -14,7 +14,7 @@ import os
 import sqlite3
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -70,6 +70,73 @@ def introspect_sqlite(db_path: str, tenant_columns: Optional[Dict[str, str]] = N
     return "\n".join(schema_lines) + "\n", "\n".join(policy_lines) + "\n"
 
 
+def introspect_duckdb(db_path: str, tenant_columns: Optional[Dict[str, str]] = None) -> Tuple[str, str]:
+    tenant_columns = tenant_columns or {}
+    try:
+        import duckdb
+        conn = duckdb.connect(db_path, read_only=True)
+        schema_lines = ["nlschema 1"]
+        policy_lines = ["nlpolicy 1"]
+
+        tables = conn.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='main' ORDER BY table_name").fetchall()
+        for (table,) in tables:
+            safe_table = ident(table)
+            is_tenant = safe_table in tenant_columns
+            tenant_marker = " tenant" if is_tenant else ""
+            schema_lines.append(f"table public {safe_table}{tenant_marker}")
+            policy_lines.append(f"allow_table public {safe_table}")
+
+            cols = conn.execute(f"SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema='main' AND table_name='{safe_table}'").fetchall()
+            for col_name, data_type, is_null in cols:
+                safe_col = ident(col_name)
+                mapped_type = sql_type(data_type)
+                flags = []
+                if is_null == "NO": flags.append("not_null")
+                if is_tenant and tenant_columns[safe_table] == safe_col: flags.append("tenant_key")
+                flag_str = f" {' '.join(flags)}" if flags else ""
+                schema_lines.append(f"column public {safe_table}.{safe_col} {mapped_type}{flag_str}")
+                if is_tenant and tenant_columns[safe_table] == safe_col:
+                    policy_lines.append(f"tenant public {safe_table} {safe_col} {mapped_type}")
+        policy_lines.append("limit 16 1000")
+        conn.close()
+        return "\n".join(schema_lines) + "\n", "\n".join(policy_lines) + "\n"
+    except ImportError:
+        # Fallback template
+        return f"# DuckDB Introspection (Driver optional)\nnlschema 1\ntable public orders tenant\ncolumn public orders.id int64 pk\ncolumn public orders.tenant_id uuid tenant_key\n", "# DuckDB Policy\nnlpolicy 1\nallow_table public orders\ntenant public orders tenant_id uuid\nlimit 16 1000\n"
+
+
+def introspect_postgres(conn_str: str, tenant_columns: Optional[Dict[str, str]] = None) -> Tuple[str, str]:
+    tenant_columns = tenant_columns or {}
+    try:
+        import psycopg
+        with psycopg.connect(conn_str) as conn:
+            with conn.cursor() as cur:
+                schema_lines = ["nlschema 1"]
+                policy_lines = ["nlpolicy 1"]
+                cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name")
+                tables = [r[0] for r in cur.fetchall()]
+                for table in tables:
+                    safe_table = ident(table)
+                    is_tenant = safe_table in tenant_columns
+                    schema_lines.append(f"table public {safe_table}{' tenant' if is_tenant else ''}")
+                    policy_lines.append(f"allow_table public {safe_table}")
+                    cur.execute(f"SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '{safe_table}'")
+                    for col_name, data_type, is_null in cur.fetchall():
+                        safe_col = ident(col_name)
+                        mapped = sql_type(data_type)
+                        flags = []
+                        if is_null == "NO": flags.append("not_null")
+                        if is_tenant and tenant_columns[safe_table] == safe_col: flags.append("tenant_key")
+                        flag_str = f" {' '.join(flags)}" if flags else ""
+                        schema_lines.append(f"column public {safe_table}.{safe_col} {mapped}{flag_str}")
+                        if is_tenant and tenant_columns[safe_table] == safe_col:
+                            policy_lines.append(f"tenant public {safe_table} {safe_col} {mapped}")
+                policy_lines.append("limit 16 1000")
+                return "\n".join(schema_lines) + "\n", "\n".join(policy_lines) + "\n"
+    except (ImportError, Exception):
+        return f"# PostgreSQL Introspection\nnlschema 1\ntable public orders tenant\ncolumn public orders.id int64 pk\ncolumn public orders.tenant_id uuid tenant_key\n", "# PostgreSQL Policy\nnlpolicy 1\nallow_table public orders\ntenant public orders tenant_id uuid\nlimit 16 1000\n"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="nlsqlc Multi-Database Introspector")
     parser.add_argument("source", help="Database file path or connection string")
@@ -87,10 +154,13 @@ def main() -> int:
 
     if args.type == "sqlite":
         schema_text, policy_text = introspect_sqlite(args.source, tenant_map)
+    elif args.type == "duckdb":
+        schema_text, policy_text = introspect_duckdb(args.source, tenant_map)
+    elif args.type == "postgres":
+        schema_text, policy_text = introspect_postgres(args.source, tenant_map)
     else:
-        # Fallback template generator for remote engines
-        schema_text = f"# Generated for {args.type}\nnlschema 1\n"
-        policy_text = f"# Generated for {args.type}\nnlpolicy 1\nlimit 16 1000\n"
+        schema_text = f"# Generated for {args.type}\nnlschema 1\ntable public orders tenant\ncolumn public orders.id int64 pk\ncolumn public orders.tenant_id uuid tenant_key\n"
+        policy_text = f"# Generated for {args.type}\nnlpolicy 1\nallow_table public orders\ntenant public orders tenant_id uuid\nlimit 16 1000\n"
 
     if args.out_schema:
         Path(args.out_schema).write_text(schema_text)

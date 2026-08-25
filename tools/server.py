@@ -265,7 +265,8 @@ class GatewayHTTPHandler(BaseHTTPRequestHandler):
             "mysql": nlsql.NLSQL_DIALECT_MYSQL,
             "sqlserver": nlsql.NLSQL_DIALECT_SQLSERVER,
         }
-        dialect = dialect_map.get(req_data.get("dialect", "postgres").lower(), nlsql.NLSQL_DIALECT_POSTGRES)
+        dialect_str = req_data.get("dialect", "postgres") if isinstance(req_data, dict) else "postgres"
+        dialect = dialect_map.get(str(dialect_str).lower(), nlsql.NLSQL_DIALECT_POSTGRES)
 
         if path == "/v1/compile":
             ir = req_data.get("ir")
@@ -337,6 +338,69 @@ class GatewayHTTPHandler(BaseHTTPRequestHandler):
             else:
                 self._send_json(400, {"status": "UNSUPPORTED", "error": res.error or "Unsupported question", "trace_id": trace_id})
             res.close()
+            return
+
+        if path == "/v1/explain":
+            ir = req_data.get("ir")
+            if not ir:
+                self._send_json(400, {"error": "Missing 'ir' field", "trace_id": trace_id})
+                return
+            plan = nlsql.explain(self.gateway.context, ir, self.gateway.schema, self.gateway.policy, dialect=dialect)
+            self._send_json(200 if plan["status"] == "OK" else 400, plan)
+            return
+
+        if path == "/v1/diff":
+            ir1 = req_data.get("ir1")
+            ir2 = req_data.get("ir2")
+            if not ir1 or not ir2:
+                self._send_json(400, {"error": "Missing 'ir1' or 'ir2' field", "trace_id": trace_id})
+                return
+            diff_res = nlsql.diff(ir1, ir2)
+            self._send_json(200, diff_res)
+            return
+
+        if path == "/rpc":
+            # JSON-RPC 2.0 Support (Single or Batch)
+            def handle_rpc_item(item: Dict[str, Any]) -> Dict[str, Any]:
+                req_id = item.get("id")
+                method = item.get("method")
+                params = item.get("params", {})
+                d = dialect_map.get(params.get("dialect", "postgres").lower(), nlsql.NLSQL_DIALECT_POSTGRES)
+
+                if method == "compile":
+                    ir_code = params.get("ir")
+                    if not ir_code:
+                        return {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32602, "message": "Invalid params: missing ir"}}
+                    r = nlsql.compile_ir(self.gateway.context, ir_code, self.gateway.schema, self.gateway.policy, dialect=d)
+                    if r.status == nlsql.NLSQL_OK:
+                        out = {"jsonrpc": "2.0", "id": req_id, "result": {"sql": r.sql, "complexity": r.complexity, "risk": "LOW" if r.risk == nlsql.NLSQL_RISK_LOW else "MODERATE", "params": r.params}}
+                    else:
+                        out = {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32000, "message": r.error or "Compilation failed"}}
+                    r.close()
+                    return out
+                elif method == "validate":
+                    ir_code = params.get("ir")
+                    r = nlsql.compile_ir(self.gateway.context, ir_code, self.gateway.schema, self.gateway.policy, dialect=d)
+                    val = r.status == nlsql.NLSQL_OK
+                    out = {"jsonrpc": "2.0", "id": req_id, "result": {"valid": val, "error": r.error if not val else None}}
+                    r.close()
+                    return out
+                elif method == "explain":
+                    ir_code = params.get("ir")
+                    plan_data = nlsql.explain(self.gateway.context, ir_code, self.gateway.schema, self.gateway.policy, dialect=d)
+                    return {"jsonrpc": "2.0", "id": req_id, "result": plan_data}
+                elif method == "diff":
+                    diff_data = nlsql.diff(params.get("ir1", ""), params.get("ir2", ""))
+                    return {"jsonrpc": "2.0", "id": req_id, "result": diff_data}
+                return {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32601, "message": f"Method not found: {method}"}}
+
+            if isinstance(req_data, list):
+                rpc_responses = [handle_rpc_item(item) for item in req_data if isinstance(item, dict)]
+                self._send_json(200, rpc_responses)
+            elif isinstance(req_data, dict):
+                self._send_json(200, handle_rpc_item(req_data))
+            else:
+                self._send_json(400, {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}})
             return
 
         self._send_json(404, {"error": "Endpoint not found", "path": path})

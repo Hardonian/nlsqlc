@@ -61,6 +61,7 @@ static void usage(void) {
     puts("nlsqlc " NLSQL_VERSION "\n"
          "usage: nlsqlc compile --ir FILE [--schema FILE] [--policy FILE] [--dialect DIALECT] [--json]\n"
          "       nlsqlc validate-ir --ir FILE [--schema FILE] [--policy FILE]\n"
+         "       nlsqlc explain --ir FILE [--schema FILE] [--policy FILE] [--dialect DIALECT]\n"
          "       nlsqlc fmt --ir FILE\n"
          "       nlsqlc version\n       nlsqlc grammar\n"
          "formats: .nlschema and .nlpolicy are trusted line-oriented config files");
@@ -131,7 +132,7 @@ int main(int argc, char **argv) {
     if (argc < 2 || strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) { usage(); return argc < 2 ? 2 : 0; }
     command = argv[1]; if (strcmp(command, "version") == 0) { puts(NLSQL_VERSION); return 0; }
     if (strcmp(command, "grammar") == 0) { puts("(nlsql 2 (query (from IDENT [IDENT]) [join ...] (select (field EXPR IDENT) ...) ...))"); return 0; }
-    if (strcmp(command, "compile") != 0 && strcmp(command, "validate-ir") != 0 && strcmp(command, "fmt") != 0) { fprintf(stderr, "unknown command: %s\n", command); return 2; }
+    if (strcmp(command, "compile") != 0 && strcmp(command, "validate-ir") != 0 && strcmp(command, "fmt") != 0 && strcmp(command, "explain") != 0) { fprintf(stderr, "unknown command: %s\n", command); return 2; }
     for (i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--ir") == 0 && i + 1 < argc) ir_path = argv[++i];
         else if (strcmp(argv[i], "--schema") == 0 && i + 1 < argc) schema_path = argv[++i];
@@ -150,6 +151,12 @@ int main(int argc, char **argv) {
             puts("VALID");
         } else if (strcmp(command, "fmt") == 0) {
             puts(nlsql_result_canonical_ir(result));
+        } else if (strcmp(command, "explain") == 0) {
+            printf("┌── [Execution Plan & Policy Audit]\n");
+            printf("│  ├── Status: VALID (Dialect: %s)\n", nlsql_dialect_name(request.dialect));
+            printf("│  ├── Complexity: %u | Risk: %s\n", nlsql_result_complexity(result), nlsql_result_risk(result) == NLSQL_RISK_LOW ? "LOW" : "MODERATE");
+            printf("│  ├── Fingerprint: %llu\n", (unsigned long long)nlsql_result_fingerprint(result));
+            printf("│  └── Emitted SQL:\n│      %s\n└──\n", nlsql_result_sql(result).sql);
         } else if (json_output) {
             printf("{\"status\":\"OK\",\"dialect\":\"%s\",\"sql\":\"%s\",\"complexity\":%u,\"risk\":\"%s\"}\n",
                    nlsql_dialect_name(request.dialect), nlsql_result_sql(result).sql, nlsql_result_complexity(result),
