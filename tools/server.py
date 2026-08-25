@@ -209,6 +209,12 @@ class GatewayHTTPHandler(BaseHTTPRequestHandler):
         path = parsed.path
         trace_id = self.headers.get("X-Trace-ID", f"trace-{int(time.time()*1000)}")
 
+        if path in ("/", "/playground"):
+            pg_path = ROOT / "tools" / "playground.html"
+            if pg_path.exists():
+                self._send_text(200, pg_path.read_text(encoding="utf-8"), content_type="text/html; charset=utf-8")
+                return
+
         if path in ("/healthz", "/readyz", "/livez"):
             self._send_json(200, {"status": "UP", "version": "0.1.2", "trace_id": trace_id})
             return

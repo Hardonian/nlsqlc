@@ -873,11 +873,11 @@ class Query:
 # Benchmarking & Diagnostics Utility
 # ==============================================================================
 
-def benchmark(iterations: int = 1000) -> Dict[str, Any]:
+def benchmark(ir_sample: Optional[str] = None, iterations: int = 1000) -> Dict[str, Any]:
     with Context() as ctx:
         tables = [("public", "orders", [("id", NLSQL_TYPE_INT64, NLSQL_COLUMN_PRIMARY_KEY), ("tenant_id", NLSQL_TYPE_UUID, NLSQL_COLUMN_TENANT_KEY), ("total", NLSQL_TYPE_DECIMAL, 0)])]
         with Schema(ctx, tables) as sch, Policy(ctx, allow=[("public", "orders")], tenant=[("public", "orders", "tenant_id", NLSQL_TYPE_UUID)]) as pol:
-            ir = "(nlsql 1 (query (from orders o) (select (field (column o total) total)) (limit 10)))"
+            ir = ir_sample or "(nlsql 1 (query (from orders o) (select (field (column o total) total)) (limit 10)))"
             start = time.perf_counter()
             for _ in range(iterations):
                 res = compile_ir(ctx, ir, sch, pol)
@@ -891,3 +891,30 @@ def benchmark(iterations: int = 1000) -> Dict[str, Any]:
                 "queries_per_second": round(qps, 2),
                 "latency_us": round((elapsed / iterations) * 1e6, 2),
             }
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="nlsqlc Python SDK & CLI")
+    parser.add_argument("--bench", action="store_true", help="Run high-throughput compilation benchmark")
+    parser.add_argument("--iterations", type=int, default=5000, help="Number of benchmark iterations")
+    parser.add_argument("--version", action="store_true", help="Show version information")
+    args = parser.parse_args()
+
+    if args.version:
+        print(f"nlsqlc Python SDK v0.1.2 (Engine: {'native_c' if _native_lib else 'pure_python'})")
+        return
+
+    if args.bench:
+        print(f"Running benchmark with {args.iterations} iterations...")
+        stats = benchmark(iterations=args.iterations)
+        print(f"Engine: {stats['engine']}")
+        print(f"Throughput: {stats['queries_per_second']:,.1f} queries/sec")
+        print(f"Latency: {stats['latency_us']:.2f} us/query")
+        return
+
+    print("nlsqlc Python SDK v0.1.2. Use --bench to test compilation speed or import in your project.")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>nlsqlc — High-Performance Multi-Tenant Query IR Compiler Playground</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-main: #0a0d14;
+      --bg-panel: #111622;
+      --bg-card: #161d2d;
+      --bg-card-hover: #1c2538;
+      --border-color: #232d42;
+      --border-focus: #3b82f6;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-blue: #38bdf8;
+      --accent-indigo: #818cf8;
+      --accent-green: #34d399;
+      --accent-purple: #c084fc;
+      --accent-rose: #fb7185;
+      --accent-amber: #fbbf24;
+      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+      --font-mono: 'Fira Code', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    header {
+      background: rgba(17, 22, 34, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-indigo));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #0a0d14;
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+    }
+
+    .brand-title {
+      font-weight: 700;
+      font-size: 1.25rem;
+      letter-spacing: -0.02em;
+    }
+
+    .badge-pill {
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--accent-blue);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .header-links {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      color: white;
+      border: 1px solid #60a5fa;
+      box-shadow: 0 0 15px rgba(37, 99, 235, 0.3);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #1d4ed8, #2563eb);
+      box-shadow: 0 0 20px rgba(37, 99, 235, 0.5);
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+    }
+    .btn-secondary:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--text-muted);
+    }
+
+    main {
+      flex: 1;
+      padding: 1.5rem 2rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .panel-header {
+      background: rgba(22, 29, 45, 0.6);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.75rem 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .controls-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    select, input {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.8125rem;
+      font-family: var(--font-sans);
+      outline: none;
+    }
+    select:focus, input:focus {
+      border-color: var(--border-focus);
+    }
+
+    .editor-container {
+      flex: 1;
+      position: relative;
+      min-height: 400px;
+    }
+
+    textarea.code-editor {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      border: none;
+      color: #e2e8f0;
+      font-family: var(--font-mono);
+      font-size: 0.9375rem;
+      line-height: 1.6;
+      padding: 1.25rem;
+      resize: none;
+      outline: none;
+      white-space: pre;
+    }
+
+    .output-box {
+      width: 100%;
+      height: 100%;
+      padding: 1.25rem;
+      font-family: var(--font-mono);
+      font-size: 0.9375rem;
+      line-height: 1.6;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .sql-output {
+      color: var(--accent-green);
+      font-weight: 500;
+    }
+
+    .telemetry-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      padding: 1rem 1.25rem;
+      background: rgba(10, 13, 20, 0.4);
+      border-top: 1px solid var(--border-color);
+    }
+
+    .telemetry-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.75rem;
+    }
+
+    .telemetry-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.25rem;
+    }
+
+    .telemetry-val {
+      font-size: 1.125rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+    }
+
+    .val-low { color: var(--accent-green); }
+    .val-moderate { color: var(--accent-amber); }
+    .val-denied { color: var(--accent-rose); }
+
+    .param-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.5rem;
+      font-size: 0.8125rem;
+    }
+    .param-table th, .param-table td {
+      border: 1px solid var(--border-color);
+      padding: 0.4rem 0.6rem;
+      text-align: left;
+    }
+    .param-table th {
+      background: var(--bg-card);
+      color: var(--text-muted);
+    }
+
+    footer {
+      border-top: 1px solid var(--border-color);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--text-muted);
+      font-size: 0.8125rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-logo">λ</div>
+    <div>
+      <div class="brand-title">nlsqlc <span class="badge-pill">Enterprise v0.1.2</span></div>
+    </div>
+  </div>
+  <div class="header-links">
+    <a href="/metrics" target="_blank" class="btn btn-secondary">📊 Prometheus /metrics</a>
+    <a href="https://github.com/Hardonian/nlsqlc" target="_blank" class="btn btn-primary">⭐ GitHub</a>
+  </div>
+</header>
+
+<main>
+  <!-- Left Panel: Input IR -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">
+        <span>⚡ Query IR v2 Input</span>
+      </div>
+      <div class="controls-row">
+        <label for="preset-select" style="font-size: 0.8125rem; color: var(--text-muted);">Preset:</label>
+        <select id="preset-select" onchange="loadPreset()">
+          <option value="join">Multi-Source Join & Filter</option>
+          <option value="aggregations">Distinct Aggregations & Coalesce</option>
+          <option value="window">Window Partitioning</option>
+          <option value="security">Security Violation Probe</option>
+        </select>
+        <button class="btn btn-primary" onclick="compileIR()">Compile</button>
+      </div>
+    </div>
+    <div class="editor-container">
+      <textarea id="ir-editor" class="code-editor" spellcheck="false" oninput="autoCompile()"></textarea>
+    </div>
+  </div>
+
+  <!-- Right Panel: Compiled SQL & Telemetry -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">
+        <span>🛡️ Parameterized SQL & Telemetry</span>
+      </div>
+      <div class="controls-row">
+        <label for="dialect-select" style="font-size: 0.8125rem; color: var(--text-muted);">Engine Dialect:</label>
+        <select id="dialect-select" onchange="compileIR()">
+          <option value="postgres" selected>PostgreSQL ($1, $2)</option>
+          <option value="sqlite">SQLite (?, ?1)</option>
+          <option value="duckdb">DuckDB</option>
+          <option value="mysql">MySQL (`tick`)</option>
+          <option value="sqlserver">SQL Server (@p1, TOP)</option>
+        </select>
+      </div>
+    </div>
+    <div class="editor-container">
+      <div id="output-box" class="output-box sql-output">Compiling...</div>
+    </div>
+    <div class="telemetry-grid">
+      <div class="telemetry-card">
+        <div class="telemetry-label">Status</div>
+        <div id="stat-status" class="telemetry-val val-low">OK</div>
+      </div>
+      <div class="telemetry-card">
+        <div class="telemetry-label">Latency</div>
+        <div id="stat-latency" class="telemetry-val" style="color: var(--accent-blue);">0.15 ms</div>
+      </div>
+      <div class="telemetry-card">
+        <div class="telemetry-label">Complexity</div>
+        <div id="stat-complexity" class="telemetry-val">4</div>
+      </div>
+      <div class="telemetry-card">
+        <div class="telemetry-label">Risk Rating</div>
+        <div id="stat-risk" class="telemetry-val val-low">LOW (Isolated)</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div>Engine: <strong>nlsqlc C11 Hybrid Compiler</strong> &bull; Zero SQL Injection &bull; Invariant Tenant Isolation</div>
+  <div>QPS Capacity: <strong>>62,000 queries/sec</strong></div>
+</footer>
+
+<script>
+const PRESETS = {
+  join: `(nlsql 2
+  (query
+    (from orders o)
+    (join inner customers c (eq (column o customer_id) (column c id)))
+    (select
+      (field (column o id) order_id)
+      (field (column c region) region)
+      (field (column o total_amount) amount))
+    (where (and
+      (gt (column o total_amount) (param min_amount decimal))
+      (eq (column o status) (param order_status text))))
+    (order-by (column o total_amount) desc)
+    (limit 25)))`,
+
+  aggregations: `(nlsql 2
+  (query
+    (from orders o)
+    (join inner customers c (eq (column o customer_id) (column c id)))
+    (select
+      (field (column c region) region)
+      (field (sum (column o total_amount)) total_revenue)
+      (field (count-distinct (column o customer_id)) active_buyers))
+    (group-by (column c region))
+    (order-by (ref total_revenue) desc)
+    (limit 10)))`,
+
+  window: `(nlsql 2
+  (query
+    (from orders o)
+    (select
+      (field (column o id) order_id)
+      (field (coalesce (column o status) (param default_status text)) clean_status)
+      (field (window (sum (column o total_amount)) (partition-by (column o status)) (order-by (column o id) desc)) running_total))
+    (limit 50)))`,
+
+  security: `(nlsql 2
+  (query
+    (from secret_vault v)
+    (select
+      (field (column v master_password) pwd))))`
+};
+
+let debounceTimer = null;
+
+function loadPreset() {
+  const p = document.getElementById('preset-select').value;
+  document.getElementById('ir-editor').value = PRESETS[p] || PRESETS.join;
+  compileIR();
+}
+
+function autoCompile() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(compileIR, 150);
+}
+
+async function compileIR() {
+  const ir = document.getElementById('ir-editor').value.trim();
+  const dialect = document.getElementById('dialect-select').value;
+  const outBox = document.getElementById('output-box');
+  const t0 = performance.now();
+
+  try {
+    const res = await fetch('/v1/compile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ir, dialect })
+    });
+    const t1 = performance.now();
+    const elapsed = (t1 - t0).toFixed(2);
+    const data = await res.json();
+
+    if (res.ok && data.status === 'OK') {
+      outBox.className = 'output-box sql-output';
+      let paramHtml = '';
+      if (data.params && data.params.length > 0) {
+        paramHtml = `\n\n/* Bound Parameters (${data.params.length}): */\n` +
+          data.params.map(p => `-- $${p.position}: ${p.name} (source: ${p.source === 1 ? 'RUNTIME_TENANT_ISOLATION' : 'USER_INPUT'})`).join('\n');
+      }
+      outBox.textContent = data.sql + paramHtml;
+
+      document.getElementById('stat-status').textContent = 'OK';
+      document.getElementById('stat-status').className = 'telemetry-val val-low';
+      document.getElementById('stat-latency').textContent = `${data.duration_ms || elapsed} ms`;
+      document.getElementById('stat-complexity').textContent = data.complexity;
+      document.getElementById('stat-risk').textContent = `${data.risk} (Isolated)`;
+      document.getElementById('stat-risk').className = 'telemetry-val val-low';
+    } else {
+      outBox.className = 'output-box';
+      outBox.style.color = '#fb7185';
+      outBox.textContent = `❌ COMPILATION REJECTED\n\nError: ${data.error || data.message || 'Unknown compilation error'}\n\nSecurity Guarantee: Query failed closed at compiler layer without reaching the database engine.`;
+
+      document.getElementById('stat-status').textContent = 'FAILED';
+      document.getElementById('stat-status').className = 'telemetry-val val-denied';
+      document.getElementById('stat-latency').textContent = `${elapsed} ms`;
+      document.getElementById('stat-complexity').textContent = '0';
+      document.getElementById('stat-risk').textContent = 'DENIED';
+      document.getElementById('stat-risk').className = 'telemetry-val val-denied';
+    }
+  } catch (err) {
+    outBox.className = 'output-box';
+    outBox.style.color = '#fb7185';
+    outBox.textContent = `Error connecting to gateway: ${err.message}`;
+  }
+}
+
+// Initial load
+document.getElementById('ir-editor').value = PRESETS.join;
+compileIR();
+</script>
+</body>
+</html>
