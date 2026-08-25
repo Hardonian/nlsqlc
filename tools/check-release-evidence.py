@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,18 +21,19 @@ assert f'VERSION="${{1:-{version}}}"' in (ROOT / "tools/release.sh").read_text(e
 assert "Meson execution is not claimed" in readiness or "Meson execution" in readiness
 assert "Live execution" in readiness
 
-# Run bash script if bash/sh is present on system, else execute Python native verification
-bash_exec = shutil.which("bash") or shutil.which("sh")
-if bash_exec:
-    subprocess.run([bash_exec, str(ROOT / "tools/check-release-consistency.sh")], cwd=ROOT, check=True)
-else:
-    # Direct Python verification of header synchronization
-    h1 = (ROOT / "include/nlsql/nlsql.h").read_text(encoding="utf-8")
-    h2 = (ROOT / "dist/nlsql.h").read_text(encoding="utf-8")
-    assert h1 == h2, "dist/nlsql.h is not synchronized with include/nlsql/nlsql.h"
+# Direct Python verification of header synchronization
+h1 = (ROOT / "include/nlsql/nlsql.h").read_text(encoding="utf-8")
+h2 = (ROOT / "dist/nlsql.h").read_text(encoding="utf-8")
+assert h1 == h2, "dist/nlsql.h is not synchronized with include/nlsql/nlsql.h"
 
-    c1 = (ROOT / "src/nlsql.c").read_text(encoding="utf-8")
-    c2 = (ROOT / "dist/nlsql.c").read_text(encoding="utf-8").replace('#include "nlsql.h"', '#include "nlsql/nlsql.h"')
-    assert c1 == c2, "dist/nlsql.c is not synchronized with src/nlsql.c"
+c1 = (ROOT / "src/nlsql.c").read_text(encoding="utf-8")
+c2 = (ROOT / "dist/nlsql.c").read_text(encoding="utf-8").replace('#include "nlsql.h"', '#include "nlsql/nlsql.h"')
+assert c1 == c2, "dist/nlsql.c is not synchronized with src/nlsql.c"
+
+# If on POSIX and bash is available, run bash script as well
+if os.name != "nt":
+    bash_exec = shutil.which("bash") or shutil.which("sh")
+    if bash_exec:
+        subprocess.run([bash_exec, str(ROOT / "tools/check-release-consistency.sh")], cwd=ROOT, check=True)
 
 print(f"release_evidence_consistency_pass version={version}")
