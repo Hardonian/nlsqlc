@@ -333,7 +333,13 @@
         <span>🛡️ Parameterized SQL & Telemetry</span>
       </div>
       <div class="controls-row">
-        <label for="dialect-select" style="font-size: 0.8125rem; color: var(--text-muted);">Engine Dialect:</label>
+        <label for="view-mode" style="font-size: 0.8125rem; color: var(--text-muted);">View:</label>
+        <select id="view-mode" onchange="updateView()">
+          <option value="sql" selected>SQL Output</option>
+          <option value="plan">ASCII Execution Plan</option>
+          <option value="manifest">Audit Manifest</option>
+        </select>
+        <label for="dialect-select" style="font-size: 0.8125rem; color: var(--text-muted); margin-left: 0.5rem;">Engine:</label>
         <select id="dialect-select" onchange="compileIR()">
           <option value="postgres" selected>PostgreSQL ($1, $2)</option>
           <option value="sqlite">SQLite (?, ?1)</option>
