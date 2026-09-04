@@ -119,6 +119,10 @@ Bound Parameters:
 import nlsql
 
 # 1. Initialize Context, Schema, and Tenant Policy
+
+<!-- BEGIN: REPO HERO -->
+![nlsqlc — hero generated locally on the GPU stack](assets/repo-hero.png)
+<!-- END: REPO HERO -->
 ctx = nlsql.Context()
 schema = nlsql.Schema(ctx, [
     ("public", "orders", [
